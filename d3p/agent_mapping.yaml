@@ -1,0 +1,259 @@
+# D3P-Agent Integration Mapping
+# This file maps each D3P phase to the appropriate agents and defines their roles
+# Version: 1.0.0
+# Last Updated: 2025-01-10
+
+## Overview
+# The D3P (Dialogue-Driven Development Protocol) serves as the master orchestrator
+# Each phase activates specific agents based on the work required
+# Agents can be primary (lead the phase) or supporting (provide specific expertise)
+
+phase_mappings:
+  phase_1_vision_alignment:
+    name: "Vision & Intent Alignment"
+    description: "Establish clear project vision and stakeholder alignment"
+    primary_agents:
+      - requirement_agent  # Leads requirements discovery
+      - system_architect   # Defines technical vision
+    supporting_agents:
+      - aura_agent        # Brand and vision alignment
+      - api_architect     # API strategy if applicable
+    design_agents_involved:
+      - brand_agent       # Ensures brand consistency
+      - requirement_agent # Requirements discovery
+    outputs:
+      - vision_statement.md
+      - success_metrics.md
+      - stakeholder_matrix.md
+    handoff_to: phase_2_user_mapping
+
+  phase_2_user_mapping:
+    name: "User & Stakeholder Mapping"
+    description: "Identify and understand all system users and stakeholders"
+    primary_agents:
+      - requirement_agent  # User research and personas
+      - layout_agent      # User journey visualization
+    supporting_agents:
+      - frontend_architect # Technical UX considerations
+      - mobile_engineer   # Mobile user considerations
+    design_agents_involved:
+      - layout_agent      # User flow design
+      - motion_agent      # Interaction patterns
+    outputs:
+      - user_personas.md
+      - user_journeys.md
+      - stakeholder_map.md
+    handoff_to: phase_3_requirements
+
+  phase_3_requirements:
+    name: "Requirements Discovery & Validation"
+    description: "Detailed requirements gathering and validation"
+    primary_agents:
+      - requirement_agent  # Requirements elicitation
+      - system_architect  # Technical feasibility
+    supporting_agents:
+      - backend_engineer  # Backend requirements
+      - frontend_architect # Frontend requirements
+      - data_engineer     # Data requirements
+      - security_engineer # Security requirements
+    design_agents_involved:
+      - requirement_agent # Leading requirements
+      - layout_agent     # UI requirements
+    outputs:
+      - functional_requirements.md
+      - non_functional_requirements.md
+      - technical_constraints.md
+    handoff_to: phase_4_design
+
+  phase_4_design:
+    name: "Design & Architecture Planning"
+    description: "System design and technical architecture"
+    primary_agents:
+      - system_architect   # System design lead
+      - layout_agent      # UI/UX design lead
+    supporting_agents:
+      - api_architect     # API design
+      - data_engineer     # Data architecture
+      - frontend_architect # Frontend architecture
+      - backend_engineer  # Backend architecture
+    design_agents_involved:
+      - layout_agent      # UI layouts
+      - brand_agent       # Visual design
+      - motion_agent      # Interactions
+      - aura_agent        # Overall feel
+    outputs:
+      - system_architecture.md
+      - api_specification.yaml
+      - ui_mockups/
+      - data_models.md
+    handoff_to: phase_5_development
+
+  phase_5_development_kickoff:
+    name: "Development Sprint Planning"
+    description: "Prepare for implementation phase"
+    primary_agents:
+      - system_architect   # Technical leadership
+      - devops_engineer   # Environment setup
+    supporting_agents:
+      - backend_engineer  # Backend planning
+      - frontend_architect # Frontend planning
+      - mobile_engineer   # Mobile planning
+    outputs:
+      - sprint_plan.md
+      - development_guidelines.md
+      - ci_cd_setup.yaml
+    handoff_to: phase_6_development
+
+  phase_6_development:
+    name: "Core Development & Integration"
+    description: "Implementation of system components"
+    primary_agents:
+      - backend_engineer   # Backend implementation
+      - frontend_architect # Frontend implementation
+    supporting_agents:
+      - api_architect     # API implementation
+      - data_engineer     # Data pipeline setup
+      - mobile_engineer   # Mobile development
+      - devops_engineer   # Deployment setup
+    parallel_execution: true
+    outputs:
+      - backend_services/
+      - frontend_components/
+      - api_endpoints/
+      - mobile_app/
+    handoff_to: phase_7_testing
+
+  phase_7_testing:
+    name: "Quality Assurance & Security"
+    description: "Comprehensive testing and security validation"
+    primary_agents:
+      - qa_engineer       # Testing lead
+      - security_engineer # Security validation
+    supporting_agents:
+      - performance_engineer # Performance testing
+      - backend_engineer    # Bug fixes
+      - frontend_architect  # UI fixes
+    outputs:
+      - test_report.md
+      - security_audit.md
+      - bug_tracker.md
+      - performance_baseline.md
+    handoff_to: phase_8_refinement
+
+  phase_8_refinement:
+    name: "Refinement & Optimization"
+    description: "Performance optimization and final adjustments"
+    primary_agents:
+      - performance_engineer # Performance lead
+      - frontend_architect   # UI optimization
+    supporting_agents:
+      - backend_engineer    # Backend optimization
+      - devops_engineer     # Infrastructure tuning
+      - qa_engineer         # Regression testing
+    outputs:
+      - optimization_report.md
+      - performance_improvements.md
+      - final_test_results.md
+    handoff_to: phase_9_deployment
+
+  phase_9_deployment:
+    name: "Deployment & Release"
+    description: "Production deployment and monitoring setup"
+    primary_agents:
+      - devops_engineer    # Deployment lead
+      - security_engineer  # Security verification
+    supporting_agents:
+      - backend_engineer   # Backend support
+      - frontend_architect # Frontend support
+      - qa_engineer        # Smoke testing
+    outputs:
+      - deployment_log.md
+      - monitoring_dashboard.md
+      - rollback_plan.md
+    handoff_to: phase_10_documentation
+
+  phase_10_documentation:
+    name: "Documentation & Knowledge Transfer"
+    description: "Comprehensive documentation and team training"
+    primary_agents:
+      - system_architect   # Architecture docs
+      - api_architect      # API documentation
+    supporting_agents:
+      - all_agents         # Domain-specific docs
+    outputs:
+      - technical_documentation/
+      - api_documentation/
+      - user_guides/
+      - operations_runbook.md
+
+## Agent Collaboration Patterns
+
+collaboration_modes:
+  sequential:
+    description: "Agents work in sequence, each building on previous work"
+    example: "requirement → architect → backend → frontend → qa"
+    
+  parallel:
+    description: "Agents work simultaneously on different aspects"
+    example: "backend + frontend + mobile (during implementation)"
+    
+  iterative:
+    description: "Agents collaborate in cycles with feedback loops"
+    example: "design ↔ frontend (during UI development)"
+    
+  consultative:
+    description: "Supporting agents provide expertise as needed"
+    example: "security_engineer consulted during all phases"
+
+## Handoff Protocols
+
+handoff_requirements:
+  documentation:
+    - Summary of completed work
+    - Key decisions and rationale
+    - Open issues or risks
+    - Specific requirements for next phase
+    
+  artifacts:
+    - All outputs must be versioned
+    - Clear naming conventions
+    - Accessible in shared location
+    - Include validation checklist
+    
+  communication:
+    - Explicit handoff confirmation
+    - Q&A session if needed
+    - Clear success criteria
+    - Escalation path defined
+
+## Quality Gates
+
+phase_gates:
+  criteria:
+    - All required outputs completed
+    - Peer review passed
+    - Automated checks passed
+    - Stakeholder approval received
+    
+  gate_types:
+    hard_gate: "Must pass before proceeding"
+    soft_gate: "Can proceed with conditions"
+    advisory_gate: "Recommendations only"
+
+## MCP Server Allocation
+
+mcp_usage_by_phase:
+  filesystem: "All phases - code and documentation"
+  shell: "Phases 5-9 - build, test, deploy"
+  memory: "Phases 3-8 - pattern storage, metrics"
+  sequential: "Phases 6-9 - ordered operations"
+  playwright: "Phases 7-8 - testing"
+
+## Success Metrics
+
+phase_success_indicators:
+  phase_1-3: "Stakeholder alignment score >90%"
+  phase_4-5: "Design approval, environment ready"
+  phase_6-7: "Code coverage >80%, zero critical bugs"
+  phase_8-9: "Performance targets met, successful deployment"
+  phase_10: "Documentation complete, team trained"

@@ -1,0 +1,413 @@
+# Feature Development Workflow
+# End-to-end workflow for implementing new features using multiple agents
+# Version: 1.0.0
+# Last Updated: 2025-01-10
+
+workflow:
+  name: "Feature Development"
+  description: "Complete workflow for implementing a new feature from requirements to deployment"
+  version: "1.0.0"
+  type: "sequential_with_parallel_phases"
+  estimated_duration: "3-5 days"
+  
+  triggers:
+    - type: "manual"
+      description: "Initiated by product manager or tech lead"
+    - type: "ticket"
+      description: "Jira/GitHub issue with 'new-feature' label"
+    - type: "api"
+      description: "Workflow API endpoint"
+
+## Workflow Phases
+
+phases:
+  - phase: 1
+    name: "Requirements & Design Discovery"
+    duration: "4-8 hours"
+    agents:
+      primary:
+        - agent: "requirement_agent"
+          role: "Lead requirements gathering and user story creation"
+        - agent: "system_architect"
+          role: "Technical feasibility and high-level design"
+      supporting:
+        - agent: "layout_agent"
+          role: "UI/UX requirements and mockups"
+        - agent: "brand_agent"
+          role: "Ensure brand consistency"
+    parallel: false
+    activities:
+      - "Elicit detailed requirements"
+      - "Create user stories and acceptance criteria"
+      - "Design high-level architecture"
+      - "Create UI mockups if needed"
+    outputs:
+      - name: "requirements.md"
+        description: "Detailed feature requirements"
+      - name: "user_stories.md"
+        description: "User stories with acceptance criteria"
+      - name: "architecture_design.md"
+        description: "High-level technical design"
+      - name: "ui_mockups/"
+        description: "UI/UX designs (if applicable)"
+    validation:
+      - type: "peer_review"
+        reviewers: ["tech_lead", "product_manager"]
+      - type: "automated"
+        checks: ["requirements_completeness", "design_consistency"]
+    handoff:
+      to: "phase_2"
+      requirements:
+        - "All outputs approved"
+        - "No blocking questions"
+
+  - phase: 2
+    name: "Detailed Technical Design"
+    duration: "3-6 hours"
+    agents:
+      primary:
+        - agent: "api_architect"
+          role: "API design and contracts"
+          condition: "if feature requires API changes"
+        - agent: "data_engineer"
+          role: "Data model and schema design"
+          condition: "if feature requires data changes"
+      supporting:
+        - agent: "backend_engineer"
+          role: "Backend design review"
+        - agent: "frontend_architect"
+          role: "Frontend architecture planning"
+    parallel: true
+    activities:
+      - "Design API contracts (OpenAPI)"
+      - "Design data models and migrations"
+      - "Plan component architecture"
+      - "Define integration points"
+    outputs:
+      - name: "api_specification.yaml"
+        description: "OpenAPI specification"
+        optional: true
+      - name: "data_models.sql"
+        description: "Database schema changes"
+        optional: true
+      - name: "component_design.md"
+        description: "Frontend component architecture"
+      - name: "integration_plan.md"
+        description: "How components integrate"
+    validation:
+      - type: "design_review"
+        participants: ["architects", "senior_engineers"]
+    handoff:
+      to: "phase_3"
+      requirements:
+        - "Design approved by tech lead"
+        - "No architectural concerns"
+
+  - phase: 3
+    name: "Implementation"
+    duration: "1-3 days"
+    agents:
+      primary:
+        - agent: "backend_engineer"
+          role: "Implement backend services and APIs"
+        - agent: "frontend_architect"
+          role: "Implement UI components and logic"
+      supporting:
+        - agent: "mobile_engineer"
+          role: "Mobile app implementation"
+          condition: "if feature affects mobile"
+        - agent: "data_engineer"
+          role: "Data pipeline implementation"
+          condition: "if feature requires ETL"
+    parallel: true
+    coordination:
+      type: "api_contract"
+      description: "Frontend and backend coordinate via API contract"
+    activities:
+      - "Implement backend services"
+      - "Create frontend components"
+      - "Integrate with existing systems"
+      - "Write unit tests"
+    outputs:
+      - name: "backend_code/"
+        description: "Backend implementation"
+      - name: "frontend_code/"
+        description: "Frontend implementation"
+      - name: "tests/"
+        description: "Unit and integration tests"
+      - name: "migration_scripts/"
+        description: "Database migrations"
+    validation:
+      - type: "code_review"
+        requirements:
+          - "PR approved by 2 reviewers"
+          - "All tests passing"
+          - "Code coverage >80%"
+    handoff:
+      to: "phase_4"
+      requirements:
+        - "All code merged to feature branch"
+        - "CI/CD pipeline green"
+
+  - phase: 4
+    name: "Testing & Security Validation"
+    duration: "4-8 hours"
+    agents:
+      primary:
+        - agent: "qa_engineer"
+          role: "Comprehensive testing and bug detection"
+        - agent: "security_engineer"
+          role: "Security scanning and validation"
+      supporting:
+        - agent: "performance_engineer"
+          role: "Performance testing"
+          condition: "if feature has performance implications"
+    parallel: true
+    activities:
+      - "Execute test scenarios"
+      - "Perform security scanning"
+      - "Load testing (if applicable)"
+      - "Cross-browser/device testing"
+      - "Accessibility testing"
+    outputs:
+      - name: "test_report.md"
+        description: "Comprehensive test results"
+      - name: "security_report.md"
+        description: "Security scan results"
+      - name: "bug_list.md"
+        description: "Identified issues"
+      - name: "performance_baseline.md"
+        description: "Performance metrics"
+    validation:
+      - type: "quality_gates"
+        criteria:
+          - "No critical bugs"
+          - "No high-severity security issues"
+          - "Performance within SLA"
+          - "Accessibility compliance"
+    handoff:
+      to: "phase_5"
+      requirements:
+        - "All critical issues resolved"
+        - "Test coverage adequate"
+
+  - phase: 5
+    name: "Optimization & Polish"
+    duration: "2-4 hours"
+    agents:
+      primary:
+        - agent: "performance_engineer"
+          role: "Performance optimization"
+        - agent: "frontend_architect"
+          role: "UI polish and optimization"
+      supporting:
+        - agent: "backend_engineer"
+          role: "Backend optimization"
+    parallel: false
+    activities:
+      - "Optimize critical paths"
+      - "Improve UI responsiveness"
+      - "Code cleanup and refactoring"
+      - "Documentation updates"
+    outputs:
+      - name: "optimization_log.md"
+        description: "Optimizations performed"
+      - name: "final_metrics.md"
+        description: "Performance metrics"
+    validation:
+      - type: "performance_check"
+        criteria:
+          - "Page load <3s"
+          - "API response <200ms p95"
+    handoff:
+      to: "phase_6"
+
+  - phase: 6
+    name: "Deployment Preparation"
+    duration: "2-3 hours"
+    agents:
+      primary:
+        - agent: "devops_engineer"
+          role: "Deployment setup and configuration"
+      supporting:
+        - agent: "backend_engineer"
+          role: "Deployment support"
+        - agent: "security_engineer"
+          role: "Production security check"
+    parallel: false
+    activities:
+      - "Update deployment configurations"
+      - "Prepare rollback plan"
+      - "Update monitoring and alerts"
+      - "Create feature flags"
+      - "Update documentation"
+    outputs:
+      - name: "deployment_plan.md"
+        description: "Step-by-step deployment guide"
+      - name: "rollback_plan.md"
+        description: "Rollback procedures"
+      - name: "monitoring_config.yaml"
+        description: "Monitoring setup"
+      - name: "feature_flags.yaml"
+        description: "Feature flag configuration"
+    validation:
+      - type: "deployment_readiness"
+        checklist:
+          - "Rollback plan tested"
+          - "Monitoring configured"
+          - "Runbooks updated"
+    handoff:
+      to: "phase_7"
+
+  - phase: 7
+    name: "Production Deployment"
+    duration: "1-2 hours"
+    agents:
+      primary:
+        - agent: "devops_engineer"
+          role: "Execute deployment"
+      supporting:
+        - agent: "qa_engineer"
+          role: "Smoke testing"
+        - agent: "backend_engineer"
+          role: "On-call support"
+        - agent: "frontend_architect"
+          role: "On-call support"
+    parallel: false
+    deployment_strategy: "blue_green"  # or "canary" or "rolling"
+    activities:
+      - "Deploy to staging"
+      - "Run smoke tests"
+      - "Deploy to production (phased)"
+      - "Monitor metrics"
+      - "Enable feature flags progressively"
+    outputs:
+      - name: "deployment_log.md"
+        description: "Deployment execution log"
+      - name: "smoke_test_results.md"
+        description: "Production validation"
+      - name: "metrics_dashboard_link.md"
+        description: "Monitoring dashboard"
+    validation:
+      - type: "production_health"
+        checks:
+          - "Error rate normal"
+          - "Performance stable"
+          - "No user complaints"
+    completion:
+      - "Feature fully deployed"
+      - "Documentation updated"
+      - "Team notified"
+
+## Coordination Patterns
+
+coordination:
+  communication:
+    primary: "Slack #feature-dev channel"
+    updates: "Every phase completion"
+    escalation: "Tech lead or architect"
+    
+  artifact_sharing:
+    location: "GitHub feature branch"
+    format: "Markdown and code"
+    versioning: "Git commits"
+    
+  meetings:
+    kickoff:
+      participants: "All primary agents"
+      duration: "30 minutes"
+    
+    daily_sync:
+      participants: "Active agents"
+      duration: "15 minutes"
+      
+    phase_handoffs:
+      participants: "Outgoing and incoming agents"
+      duration: "15-30 minutes"
+
+## Rollback Procedures
+
+rollback:
+  triggers:
+    - "Critical bug in production"
+    - "Performance degradation >20%"
+    - "Security vulnerability discovered"
+    
+  procedure:
+    1: "DevOps engineer initiates rollback"
+    2: "Revert deployment to previous version"
+    3: "QA engineer validates rollback"
+    4: "Team retrospective within 24 hours"
+
+## Success Metrics
+
+metrics:
+  process:
+    - name: "Time to production"
+      target: "<5 days"
+    - name: "Defect escape rate"
+      target: "<5%"
+    - name: "Code review turnaround"
+      target: "<4 hours"
+      
+  outcome:
+    - name: "Feature adoption"
+      measurement: "% of users using feature"
+    - name: "Performance impact"
+      measurement: "Latency change"
+    - name: "User satisfaction"
+      measurement: "NPS or feedback"
+
+## Workflow Variations
+
+variations:
+  hotfix:
+    description: "Emergency fix workflow"
+    modifications:
+      - "Skip phase 1 (requirements)"
+      - "Expedite code review"
+      - "Deploy directly to production"
+      
+  experimental_feature:
+    description: "Feature behind flag"
+    modifications:
+      - "Extended phase 1 for experimentation"
+      - "Gradual rollout in phase 7"
+      - "A/B testing setup"
+      
+  api_only:
+    description: "Backend API feature only"
+    modifications:
+      - "Skip frontend agents"
+      - "Focus on API documentation"
+      - "Extended integration testing"
+
+## Templates and Tools
+
+templates:
+  requirements: "/agents/shared/templates/requirements_template.md"
+  user_story: "/agents/shared/templates/user_story_template.md"
+  api_spec: "/agents/shared/templates/openapi_template.yaml"
+  test_plan: "/agents/shared/templates/test_plan_template.md"
+  
+tools:
+  required:
+    - "Git for version control"
+    - "Jira/GitHub for issue tracking"
+    - "Slack for communication"
+    - "CI/CD pipeline"
+    
+  optional:
+    - "Figma for design"
+    - "Postman for API testing"
+    - "DataDog for monitoring"
+
+## Related Workflows
+
+related:
+  - workflow: "bug_investigation.yaml"
+    relationship: "May trigger if bugs found"
+  - workflow: "performance_optimization.yaml"
+    relationship: "May follow if performance issues"
+  - workflow: "security_audit.yaml"
+    relationship: "Periodic security review"

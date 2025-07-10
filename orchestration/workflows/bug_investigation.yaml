@@ -1,0 +1,459 @@
+# Bug Investigation Workflow
+# Systematic approach to investigating and resolving production bugs
+# Version: 1.0.0
+# Last Updated: 2025-01-10
+
+workflow:
+  name: "Bug Investigation & Resolution"
+  description: "Multi-agent workflow for investigating, diagnosing, and fixing bugs"
+  version: "1.0.0"
+  type: "adaptive_investigation"
+  estimated_duration: "2-8 hours"
+  priority_based: true
+  
+  triggers:
+    - type: "alert"
+      description: "Production monitoring alert"
+      severity: ["critical", "high"]
+    - type: "ticket"
+      description: "Bug report from users"
+    - type: "manual"
+      description: "Engineer-initiated investigation"
+
+## Severity Definitions
+
+severity_levels:
+  critical:
+    description: "System down or major functionality broken"
+    sla: "1 hour"
+    escalation: "immediate"
+    
+  high:
+    description: "Significant functionality impaired"
+    sla: "4 hours"
+    escalation: "after 2 hours"
+    
+  medium:
+    description: "Minor functionality affected"
+    sla: "24 hours"
+    escalation: "after 8 hours"
+    
+  low:
+    description: "Cosmetic or edge case issues"
+    sla: "1 week"
+    escalation: "as needed"
+
+## Investigation Phases
+
+phases:
+  - phase: 1
+    name: "Initial Triage & Reproduction"
+    duration: "15-30 minutes"
+    urgency: "immediate for critical/high"
+    agents:
+      primary:
+        - agent: "qa_engineer"
+          role: "Bug reproduction and initial analysis"
+      supporting:
+        - agent: "devops_engineer"
+          role: "System health check and logs"
+          condition: "if production issue"
+    activities:
+      - "Reproduce the bug"
+      - "Collect error logs and stack traces"
+      - "Check system health metrics"
+      - "Determine severity and impact"
+      - "Create minimal reproduction case"
+    outputs:
+      - name: "bug_report.md"
+        description: "Detailed bug description with reproduction steps"
+      - name: "impact_assessment.md"
+        description: "Users affected and business impact"
+      - name: "initial_logs.txt"
+        description: "Relevant error logs and traces"
+    decision_point:
+      - if: "Cannot reproduce"
+        then: "Gather more information from reporter"
+      - if: "Critical severity"
+        then: "Escalate immediately"
+      - if: "Reproduced"
+        then: "Proceed to phase 2"
+
+  - phase: 2
+    name: "Root Cause Analysis"
+    duration: "30-60 minutes"
+    agents:
+      primary:
+        - agent: "backend_engineer"
+          role: "Backend code investigation"
+          condition: "if backend-related"
+        - agent: "frontend_architect"
+          role: "Frontend code investigation"
+          condition: "if frontend-related"
+      supporting:
+        - agent: "data_engineer"
+          role: "Data integrity check"
+          condition: "if data-related"
+        - agent: "performance_engineer"
+          role: "Performance analysis"
+          condition: "if performance-related"
+    parallel: true
+    investigation_tracks:
+      code_analysis:
+        - "Review recent code changes"
+        - "Check error handling paths"
+        - "Analyze data flow"
+        - "Review integration points"
+      system_analysis:
+        - "Check resource utilization"
+        - "Review deployment history"
+        - "Analyze traffic patterns"
+        - "Check external dependencies"
+    outputs:
+      - name: "root_cause_analysis.md"
+        description: "Detailed analysis of bug cause"
+      - name: "code_locations.md"
+        description: "Specific files and lines affected"
+      - name: "contributing_factors.md"
+        description: "Environmental or data factors"
+    validation:
+      - "Root cause identified with confidence >80%"
+      - "Can explain how bug occurs"
+
+  - phase: 3
+    name: "Security & Impact Assessment"
+    duration: "15-30 minutes"
+    condition: "Run if security implications suspected"
+    agents:
+      primary:
+        - agent: "security_engineer"
+          role: "Security vulnerability assessment"
+      supporting:
+        - agent: "data_engineer"
+          role: "Data exposure check"
+    activities:
+      - "Check for security vulnerabilities"
+      - "Assess data exposure risk"
+      - "Review access logs"
+      - "Determine if breach occurred"
+    outputs:
+      - name: "security_assessment.md"
+        description: "Security impact analysis"
+      - name: "exposure_report.md"
+        description: "Data exposure assessment"
+        optional: true
+    escalation:
+      - if: "Security breach confirmed"
+        then: "Trigger incident response workflow"
+
+  - phase: 4
+    name: "Solution Development"
+    duration: "30-120 minutes"
+    agents:
+      primary:
+        - agent: "backend_engineer"
+          role: "Implement backend fix"
+          condition: "if backend fix needed"
+        - agent: "frontend_architect"
+          role: "Implement frontend fix"
+          condition: "if frontend fix needed"
+      supporting:
+        - agent: "system_architect"
+          role: "Review architectural implications"
+          condition: "if systemic issue"
+    parallel: false
+    activities:
+      - "Design fix approach"
+      - "Implement code changes"
+      - "Write regression tests"
+      - "Update error handling"
+      - "Add monitoring/logging"
+    outputs:
+      - name: "fix_implementation/"
+        description: "Code changes"
+      - name: "test_cases/"
+        description: "New test cases"
+      - name: "fix_explanation.md"
+        description: "Explanation of fix"
+    code_review:
+      required: true
+      expedited: "for critical/high severity"
+      reviewers: ["senior_engineer", "original_author"]
+
+  - phase: 5
+    name: "Testing & Validation"
+    duration: "30-60 minutes"
+    agents:
+      primary:
+        - agent: "qa_engineer"
+          role: "Comprehensive testing of fix"
+      supporting:
+        - agent: "performance_engineer"
+          role: "Performance regression check"
+          condition: "if performance-sensitive"
+        - agent: "security_engineer"
+          role: "Security validation"
+          condition: "if security-related"
+    test_types:
+      - type: "regression"
+        description: "Ensure fix doesn't break existing functionality"
+      - type: "integration"
+        description: "Test with related systems"
+      - type: "performance"
+        description: "Verify no performance degradation"
+      - type: "security"
+        description: "Validate security measures"
+    outputs:
+      - name: "test_report.md"
+        description: "Comprehensive test results"
+      - name: "performance_comparison.md"
+        description: "Before/after metrics"
+      - name: "validation_checklist.md"
+        description: "All checks passed"
+    validation_criteria:
+      - "Original bug fixed"
+      - "No regression introduced"
+      - "Performance acceptable"
+      - "Security validated"
+
+  - phase: 6
+    name: "Deployment & Monitoring"
+    duration: "30-45 minutes"
+    agents:
+      primary:
+        - agent: "devops_engineer"
+          role: "Deploy fix to production"
+      supporting:
+        - agent: "qa_engineer"
+          role: "Production validation"
+        - agent: "backend_engineer"
+          role: "Standby support"
+        - agent: "frontend_architect"
+          role: "Standby support"
+    deployment_strategy:
+      critical: "Immediate hotfix deployment"
+      high: "Expedited deployment with minimal testing"
+      medium: "Normal deployment cycle"
+      low: "Next regular release"
+    activities:
+      - "Deploy to staging"
+      - "Quick smoke test"
+      - "Deploy to production"
+      - "Monitor error rates"
+      - "Validate fix in production"
+    outputs:
+      - name: "deployment_log.md"
+        description: "Deployment details"
+      - name: "monitoring_alerts.yaml"
+        description: "New alerts for this issue"
+      - name: "production_validation.md"
+        description: "Fix confirmed in production"
+    monitoring_period: "2 hours post-deployment"
+
+  - phase: 7
+    name: "Post-Mortem & Prevention"
+    duration: "60 minutes"
+    timing: "Within 48 hours of resolution"
+    agents:
+      primary:
+        - agent: "system_architect"
+          role: "Lead post-mortem analysis"
+      all_involved_agents: true
+    activities:
+      - "Timeline reconstruction"
+      - "Root cause deep dive"
+      - "Impact analysis"
+      - "Prevention measures"
+      - "Process improvements"
+    outputs:
+      - name: "post_mortem.md"
+        description: "Complete incident analysis"
+        sections:
+          - "Incident timeline"
+          - "Root cause analysis"
+          - "Impact assessment"
+          - "What went well"
+          - "What went wrong"
+          - "Action items"
+      - name: "prevention_plan.md"
+        description: "Measures to prevent recurrence"
+      - name: "monitoring_improvements.md"
+        description: "New alerts and checks"
+    follow_up:
+      - "Update runbooks"
+      - "Improve monitoring"
+      - "Add automated tests"
+      - "Architecture improvements"
+
+## Investigation Patterns
+
+investigation_patterns:
+  performance_degradation:
+    agents: ["performance_engineer", "backend_engineer", "devops_engineer"]
+    focus: ["Resource usage", "Query performance", "Caching issues"]
+    
+  data_corruption:
+    agents: ["data_engineer", "backend_engineer", "qa_engineer"]
+    focus: ["Data validation", "Transaction integrity", "Backup recovery"]
+    
+  ui_rendering:
+    agents: ["frontend_architect", "qa_engineer", "performance_engineer"]
+    focus: ["Browser compatibility", "State management", "Asset loading"]
+    
+  integration_failure:
+    agents: ["backend_engineer", "api_architect", "devops_engineer"]
+    focus: ["API contracts", "Network issues", "Authentication"]
+    
+  security_incident:
+    agents: ["security_engineer", "backend_engineer", "devops_engineer"]
+    focus: ["Access logs", "Vulnerability scan", "Data exposure"]
+
+## Communication Protocol
+
+communication:
+  channels:
+    critical: "#incident-response"
+    high: "#bugs-high-priority"
+    medium_low: "#bugs-general"
+    
+  updates:
+    frequency:
+      critical: "Every 30 minutes"
+      high: "Every hour"
+      medium_low: "At phase completion"
+      
+  stakeholder_notification:
+    critical:
+      - "CTO immediately"
+      - "Customer support immediately"
+      - "Status page update"
+    high:
+      - "Engineering manager within 30 min"
+      - "Product manager within 1 hour"
+
+## Escalation Matrix
+
+escalation:
+  triggers:
+    - "SLA breach imminent"
+    - "Cannot reproduce after 2 attempts"
+    - "Root cause not found after 2 hours"
+    - "Security implications discovered"
+    - "Data loss confirmed"
+    
+  escalation_path:
+    level_1: "Tech lead"
+    level_2: "Engineering manager"
+    level_3: "CTO"
+    
+  decisions_requiring_escalation:
+    - "Customer data recovery"
+    - "Rollback of major feature"
+    - "Emergency maintenance window"
+
+## Tools & Resources
+
+tools:
+  investigation:
+    - "Datadog/NewRelic for metrics"
+    - "ELK Stack for logs"
+    - "Sentry for error tracking"
+    - "Chrome DevTools for frontend"
+    
+  communication:
+    - "Slack for real-time updates"
+    - "Jira for tracking"
+    - "StatusPage for customer updates"
+    
+  debugging:
+    - "Remote debuggers"
+    - "Database query analyzers"
+    - "Network traffic inspectors"
+    - "Memory profilers"
+
+## Success Metrics
+
+metrics:
+  resolution:
+    - name: "Time to resolution"
+      target:
+        critical: "<2 hours"
+        high: "<4 hours"
+        medium: "<24 hours"
+    - name: "First-time fix rate"
+      target: ">90%"
+      
+  quality:
+    - name: "Regression rate"
+      target: "<5%"
+    - name: "Root cause found"
+      target: ">95%"
+      
+  process:
+    - name: "Post-mortem completion"
+      target: "100% for critical/high"
+    - name: "Prevention measures implemented"
+      target: ">80%"
+
+## Templates
+
+templates:
+  bug_report: |
+    ## Bug Report
+    **Severity**: [Critical/High/Medium/Low]
+    **Reported by**: [User/System]
+    **Date**: [Date]
+    
+    ### Description
+    [What is happening]
+    
+    ### Expected Behavior
+    [What should happen]
+    
+    ### Actual Behavior
+    [What actually happens]
+    
+    ### Reproduction Steps
+    1. [Step 1]
+    2. [Step 2]
+    
+    ### Environment
+    - Browser/OS: [Details]
+    - User Role: [Details]
+    - Feature Flags: [Details]
+    
+    ### Logs/Screenshots
+    [Attach relevant logs or screenshots]
+    
+  root_cause_template: |
+    ## Root Cause Analysis
+    
+    ### Problem Statement
+    [Clear description of the issue]
+    
+    ### Timeline
+    - [Time]: [Event]
+    
+    ### Root Cause
+    [Technical explanation of why this happened]
+    
+    ### Contributing Factors
+    - [Factor 1]
+    - [Factor 2]
+    
+    ### Code Locations
+    - File: [path/to/file.js:line]
+    - Related: [other files]
+    
+    ### Why It Wasn't Caught
+    [Explanation of testing gaps]
+
+## Related Workflows
+
+related:
+  - workflow: "incident_response.yaml"
+    trigger: "When bug becomes incident"
+  - workflow: "feature_development.yaml"
+    trigger: "When bug requires new feature"
+  - workflow: "performance_optimization.yaml"
+    trigger: "When bug is performance-related"
