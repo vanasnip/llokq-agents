@@ -1,271 +1,313 @@
-# AI Agent Development System
+# Unified D3P-SuperClaude Agent System
 
-> A comprehensive multi-agent system for software development, integrating design and development agents with the D3P (Dialogue-Driven Development Protocol) methodology.
+A comprehensive AI agent development system that combines D3P's rich agent definitions with SuperClaude's elegant command structure. This system provides 15+ specialized AI agents for software development, from requirements gathering through deployment.
 
-## 🎯 Overview
+## 🌟 Features
 
-This repository contains a complete AI agent ecosystem designed to handle all aspects of software development - from initial requirements gathering through deployment and maintenance. The system uses specialized AI agents that collaborate through structured workflows and the D3P protocol.
+- **15 Specialized AI Agents**: Each with unique personalities, decision frameworks, and expertise
+- **Elegant Command System**: Simple, intuitive commands like `/code --backend --frontend`
+- **Multi-Agent Workflows**: Pre-built workflows for feature development, bug investigation, and security audits
+- **D3P Phase Management**: 10-phase development protocol from vision to documentation
+- **Rich Agent Context**: Each agent brings core beliefs, success metrics, and problem-solving approaches
+- **MCP Integration**: Agent-specific tool preferences (filesystem, shell, memory, etc.)
 
-### Key Features
+## 📋 Prerequisites
 
-- **20+ Specialized Agents**: Each focused on specific domains (architecture, backend, frontend, QA, security, etc.)
-- **D3P Integration**: Master orchestration protocol that guides project flow
-- **Multi-Agent Workflows**: Pre-defined workflows for common development tasks
-- **MCP Server Support**: Integrated with Multiple Context Protocol servers
-- **Design + Dev Unity**: Seamless collaboration between design and development agents
+- Python 3.8+
+- Git
+- Basic understanding of command-line interfaces
 
-## 📁 Repository Structure
+## 🚀 Quick Start
 
+### Option 1: Install from Package (Recommended)
+
+```bash
+# Clone and install
+git clone <repository-url>
+cd agents
+pip install -e .
+
+# First time setup (automatic)
+unified-agents setup
+
+# Start using
+unified-agents interactive
 ```
-/agents/
-├── README.md                    # This file
-├── d3p/                         # D3P Protocol Hub
-│   ├── phases/                  # 10 D3P phase definitions
-│   ├── agent_mapping.yaml       # Maps agents to D3P phases
-│   └── integration/             # Phase-specific agent guides
-├── orchestration/               # Multi-agent workflows
-│   └── workflows/               # Common development workflows
-├── design_agents/               # Design-focused agents
-│   ├── agents.yaml              # Agent definitions
-│   └── phases/                  # Design agent protocols
-├── dev_agents/                  # Development-focused agents
-│   ├── agents.yaml              # Agent definitions
-│   └── phases/                  # Development agent protocols
-└── shared/                      # Shared resources
+
+### Option 2: Install Globally
+
+```bash
+# Install directly from git
+pip install git+https://github.com/yourusername/agents.git
+
+# Run setup
+unified-agents setup
+
+# Start using
+unified-agents interactive
 ```
 
-## 🤖 Agent Categories
+### Option 3: Development Mode
 
-### Design Agents
-- **requirement_agent**: Requirements discovery and validation
-- **layout_agent**: UI/UX layout and user flow design
-- **brand_agent**: Brand consistency and visual identity
-- **motion_agent**: Animation and interaction design
-- **aura_agent**: Overall experience and feeling
+```bash
+# Clone the repository
+git clone <repository-url>
+cd agents
 
-### Development Agents
-- **system_architect**: System design and architecture
-- **backend_engineer**: Server-side implementation
-- **frontend_architect**: Client-side architecture and components
-- **qa_engineer**: Testing and quality assurance
-- **devops_engineer**: CI/CD and infrastructure
-- **security_engineer**: Security audits and hardening
-- **data_engineer**: Data architecture and pipelines
-- **api_architect**: API design and documentation
-- **performance_engineer**: Performance optimization
-- **mobile_engineer**: Mobile app development
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-## 🔄 D3P Protocol Integration
+# Install in development mode
+pip install -e .
 
-The D3P (Dialogue-Driven Development Protocol) serves as the master orchestrator for all agents. It defines 10 phases that guide a project from inception to completion:
+# Start developing
+unified-agents demo
+```
 
-1. **Vision & Intent Alignment** - Establish project goals
-2. **User & Stakeholder Mapping** - Understand audiences
-3. **Requirements Discovery** - Detailed requirements
-4. **Design & Architecture** - System design
-5. **Development Planning** - Sprint preparation
-6. **Core Development** - Implementation
-7. **Testing & Security** - Quality assurance
-8. **Refinement** - Optimization
-9. **Deployment** - Production release
-10. **Documentation** - Knowledge transfer
+That's it! The system automatically handles agent configuration on first run.
 
-Each phase activates specific agents based on the work required. See `d3p/agent_mapping.yaml` for detailed phase-to-agent mappings.
+## 🤖 Available Agents
 
-## 🎭 Multi-Agent Workflows
+### Design Agents (5)
+- **aura** - Accessibility & Usability Review Assistant
+- **motion_maestra** - AI Motion Design Strategist  
+- **chromatic_architect** - Brand Theme Development Specialist
+- **layout_loom** - AI Design Layout Specialist
+- **riley** - Requirements Discovery Specialist
 
-Pre-defined workflows for common development scenarios:
+### Architecture Agents (2)
+- **architect** - System Architecture Specialist
+- **api** - API Design Specialist
+
+### Development Agents (4)
+- **backend** - Backend Development Specialist
+- **frontend** - Frontend Architecture Specialist
+- **data** - Data Engineering Specialist
+- **mobile** - Mobile Development Specialist
+
+### Quality Agents (3)
+- **qa** - Quality Assurance Specialist
+- **security** - Security Engineering Specialist
+- **performance** - Performance Engineering Specialist
+
+### Operations Agents (1)
+- **devops** - DevOps & Platform Engineering Specialist
+
+## 💻 Usage
+
+After installation, you can use the `unified-agents` command (or `ua` for short):
+
+```bash
+# Quick commands
+unified-agents agents       # List all available agents
+unified-agents demo         # Run a demonstration
+unified-agents interactive  # Start interactive mode
+unified-agents status       # Show current phase
+unified-agents info backend # Get agent details
+
+# Or use the short alias
+ua agents
+ua interactive
+ua demo
+```
+
+### Interactive Mode Commands
+
+Once in interactive mode, use these commands:
+
+```bash
+# Agent commands
+/agent --list               # List all available agents
+/agent --info backend       # Get detailed info about an agent
+
+# Execute commands with specific agents
+/code --backend --frontend
+/design --aura --layout_loom
+/test --qa --security
+/analyze --architect
+/deploy --devops
+```
+
+### Workflow Commands
+
+```bash
+# Start a workflow
+/workflow feature    # Feature development workflow
+/workflow bug       # Bug investigation workflow
+/workflow security  # Security audit workflow
+
+# Check workflow status
+/workflow --status
+
+# Execute next step
+/workflow --next
+```
+
+### Phase Management
+
+```bash
+# Show current D3P phase
+/phase --current
+
+# Move to next phase
+/phase --next
+
+# Jump to specific phase
+/phase --goto 3
+```
+
+### Multi-Agent Operations
+
+```bash
+# Activate multiple agents
+/team --activate "backend,frontend,qa"
+
+# Perform agent handoff
+/agent --handoff
+```
+
+## 🔄 Workflows
 
 ### Feature Development Workflow
-Complete end-to-end feature implementation involving:
-- Requirements → Architecture → Implementation → Testing → Deployment
+1. **Requirements Discovery** (riley, architect)
+2. **Architecture Design** (architect, api)
+3. **UI/UX Design** (layout_loom, chromatic_architect, aura)
+4. **Implementation** (backend, frontend)
+5. **Testing** (qa, security, performance)
+6. **Deployment** (devops)
 
 ### Bug Investigation Workflow
-Systematic bug resolution process:
-- Triage → Root Cause Analysis → Fix → Test → Deploy → Post-mortem
+1. **Triage** (qa)
+2. **Root Cause Analysis** (backend, frontend, architect)
+3. **Fix Implementation** (backend, frontend)
+4. **Verification** (qa)
+5. **Deployment** (devops)
 
-### Additional Workflows (Planned)
-- Performance Optimization
-- Security Audit
-- API Development
-- Database Migration
-- Infrastructure Scaling
+### Security Audit Workflow
+1. **Threat Modeling** (security, architect)
+2. **Vulnerability Scanning** (security)
+3. **Remediation** (security, backend, devops)
+4. **Verification** (security, qa)
 
-## 🚀 Getting Started
+## 📁 Project Structure
 
-### Prerequisites
-- Git
-- Node.js/Python (depending on implementation)
-- Access to MCP servers (filesystem, shell, memory, etc.)
-- Development environment
+```
+agents/
+├── unified/                    # Main unified system
+│   ├── agents/                # Agent management
+│   │   ├── schema.py         # Agent data model
+│   │   └── manager.py        # Agent loading/activation
+│   ├── core/                  # Core components
+│   │   ├── command_parser.py # Command parsing
+│   │   ├── command_executor.py # Command execution
+│   │   └── phase_manager.py  # D3P phase management
+│   ├── workflows/             # Workflow engine
+│   │   └── engine.py         # Workflow orchestration
+│   ├── cli.py                # Interactive CLI
+│   └── demo.py               # Demonstration script
+├── design_agents/             # Original design agent definitions
+├── dev_agents/               # Original dev agent definitions
+├── d3p/                      # D3P protocol definitions
+└── orchestration/            # Workflow templates
+```
 
-### Quick Start
+## 🎯 D3P Phases
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd agents
-   ```
+The system follows the Dialogue-Driven Development Protocol (D3P) with 10 phases:
 
-2. **Review agent configurations**
-   ```bash
-   # Design agents
-   cat design_agents/agents.yaml
-   
-   # Development agents
-   cat dev_agents/agents.yaml
-   ```
+1. **Vision & Requirements** - Establish project goals
+2. **Architecture & Planning** - Design system architecture
+3. **Design System** - Create UI/UX designs
+4. **Development Setup** - Configure development environment
+5. **Core Implementation** - Build core features
+6. **Testing & Security** - Comprehensive testing
+7. **Refinement** - Optimize and polish
+8. **Deployment Preparation** - Prepare for production
+9. **Production Release** - Deploy to production
+10. **Documentation & Handoff** - Complete documentation
 
-3. **Understand D3P phases**
-   ```bash
-   # View D3P phase mappings
-   cat d3p/agent_mapping.yaml
-   ```
-
-4. **Explore workflows**
-   ```bash
-   # Example: Feature development workflow
-   cat orchestration/workflows/feature_development.yaml
-   ```
-
-## 💡 Usage Examples
-
-### Starting a New Project
-
-1. Begin with D3P Phase 1 (Vision Alignment)
-2. Activate `requirement_agent` and `system_architect`
-3. Follow the phase progression in `d3p/agent_mapping.yaml`
-
-### Implementing a Feature
-
-1. Use the Feature Development workflow
-2. Start with requirements gathering
-3. Progress through design, implementation, testing, and deployment
-4. Each phase activates appropriate agents automatically
-
-### Investigating a Bug
-
-1. Trigger Bug Investigation workflow
-2. QA engineer leads triage
-3. Relevant engineers investigate based on bug type
-4. Follow systematic resolution process
-
-## 🔧 Configuration
+## 🛠️ Configuration
 
 ### Agent Configuration
-Each agent has:
-- **Identity**: Role and personality
-- **Core Belief**: Guiding principle
-- **MCP Preferences**: Preferred tools and servers
-- **Phase Protocol**: Specific workflow steps
+Agents are defined in `~/.claude/agents.yml` with:
+- Identity and role
+- Core beliefs and values
+- Decision frameworks
+- Success metrics
+- MCP tool preferences
+- Compatible agents for collaboration
 
-### Workflow Configuration
-Workflows define:
-- **Phases**: Sequential or parallel execution
-- **Agent Assignments**: Primary and supporting roles
-- **Handoff Protocols**: How work transfers between agents
-- **Success Criteria**: Validation requirements
+### Custom Workflows
+Create new workflows by adding to `workflows/engine.py`:
+```python
+custom_workflow = Workflow(
+    name="custom_workflow",
+    type="custom",
+    description="Your custom workflow",
+    steps=[
+        WorkflowStep(
+            name="step_name",
+            agents=["agent1", "agent2"],
+            command="/command --agent1 --agent2",
+            required_outputs=["output.md"]
+        )
+    ]
+)
+```
 
-## 📊 MCP Server Integration
-
-Agents use various MCP (Multiple Context Protocol) servers:
-
-- **filesystem**: Code and documentation management
-- **shell**: Command execution and builds
-- **memory**: State and pattern storage
-- **sequential**: Ordered processing
-- **playwright**: Testing and browser automation
-
-## 🤝 Collaboration Patterns
-
-### Sequential Collaboration
-Agents work in sequence, each building on previous work.
-Example: Architect → Backend → Frontend → QA
-
-### Parallel Collaboration
-Multiple agents work simultaneously.
-Example: Backend + Frontend during implementation
-
-### Consultative Collaboration
-Supporting agents provide expertise as needed.
-Example: Security engineer consulted throughout
-
-## 📈 Best Practices
-
-1. **Always Start with D3P Phase 1** - Ensure alignment before development
-2. **Use Appropriate Workflows** - Don't reinvent, use predefined workflows
-3. **Document Handoffs** - Clear communication between agents
-4. **Validate at Gates** - Don't skip phase validation
-5. **Maintain Traceability** - Keep clear audit trail
-
-## 🔍 Monitoring & Metrics
-
-### Process Metrics
-- Time per phase
-- Handoff efficiency
-- Defect escape rate
-
-### Outcome Metrics
-- Feature delivery time
-- Bug resolution time
-- Code quality scores
-
-## 🛠️ Extending the System
-
-### Adding New Agents
-1. Define agent in appropriate `agents.yaml`
-2. Create phase protocol in `phases/`
-3. Update D3P mappings
-4. Add to relevant workflows
-
-### Creating New Workflows
-1. Identify common patterns
-2. Define phases and agent assignments
-3. Create workflow YAML in `orchestration/workflows/`
-4. Document usage and variations
-
-## 📚 Additional Resources
-
-- [D3P Phase Documentation](d3p/phases/)
-- [Agent Phase Protocols](dev_agents/phases/)
-- [Workflow Examples](orchestration/workflows/)
-- [Integration Guides](d3p/integration/)
-
-## 🤔 Troubleshooting
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **Agent Handoff Failures**
-   - Check output artifacts
-   - Verify phase completion criteria
-   - Review handoff protocols
+1. **Import Errors**
+   ```bash
+   # Ensure PYTHONPATH is set
+   export PYTHONPATH=/path/to/agents
+   ```
 
-2. **Workflow Bottlenecks**
-   - Identify blocking agents
-   - Check for missing prerequisites
-   - Consider parallel execution
+2. **Agent Not Found**
+   ```bash
+   # Regenerate agent configuration
+   python scripts/convert_agents.py
+   cp config/agents.yml ~/.claude/agents.yml
+   ```
 
-3. **D3P Phase Misalignment**
-   - Review phase objectives
-   - Confirm stakeholder approval
-   - Check agent mapping
+3. **Command Not Recognized**
+   ```bash
+   # Commands must start with /
+   /code --backend  # Correct
+   code --backend   # Incorrect
+   ```
 
-## 🗺️ Roadmap
+## 🚧 Future Enhancements
 
-- [ ] Additional workflow templates
-- [ ] Automated workflow execution
-- [ ] Agent performance analytics
-- [ ] AI-driven agent selection
-- [ ] Real-time collaboration features
+- [ ] Real command execution integration
+- [ ] Persistent workflow state
+- [ ] Web-based UI
+- [ ] Custom agent creation
+- [ ] Plugin system for extensions
+- [ ] Integration with development tools
 
 ## 📄 License
 
 [Your License Here]
 
-## 🙏 Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📞 Support
+
+For issues and questions:
+- Create an issue on GitHub
+- Check existing documentation in `/docs`
+- Review the demo script for examples
 
 ---
 
-*Built with ❤️ by the AI Agent Development Team*
+Built with ❤️ using the D3P methodology and inspired by SuperClaude's elegance.
