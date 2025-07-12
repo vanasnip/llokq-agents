@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include unified/requirements.txt
+recursive-include unified *.py
+recursive-include unified *.yml *.yaml
+recursive-include design_agents *.yaml *.md
+recursive-include dev_agents *.yaml *.md
+recursive-include d3p *.yaml *.md
+recursive-include orchestration *.yaml
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+global-exclude .DS_Store
