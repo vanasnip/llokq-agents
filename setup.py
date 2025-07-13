@@ -3,11 +3,16 @@ Setup script for Unified Agent System
 """
 from setuptools import setup, find_packages
 import os
-import sys
 
-# Add parent directory to path to import version
-sys.path.insert(0, os.path.abspath('.'))
-from unified import __version__
+# Read version without importing the package
+version_file = os.path.join(os.path.dirname(__file__), 'unified', '__init__.py')
+with open(version_file, 'r') as f:
+    for line in f:
+        if line.startswith('__version__'):
+            __version__ = line.split('=')[1].strip().strip('"').strip("'")
+            break
+    else:
+        __version__ = "0.1.1"  # Default if not found
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
