@@ -5,6 +5,9 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 from unified.agents.schema import Agent, AgentCategory
+from unified.core.event_bus import get_event_bus, Event, EventType
+from unified.core.schema_version import get_schema_validator, SchemaType
+import uuid
 
 
 class AgentManager:
@@ -14,17 +17,26 @@ class AgentManager:
         self.config_path = config_path or Path.home() / ".claude" / "agents.yml"
         self.agents: Dict[str, Agent] = {}
         self.active_agents: Set[str] = set()
+        self.event_bus = get_event_bus()
+        self.schema_validator = get_schema_validator()
         self._load_agents()
     
     def _load_agents(self) -> None:
-        """Load all agent definitions from configuration"""
+        """Load all agent definitions from configuration with schema migration"""
         if not self.config_path.exists():
             self._create_default_config()
         
-        with open(self.config_path, 'r') as f:
-            config = yaml.safe_load(f)
+        # Load with schema migration
+        config = self.schema_validator.load_config_with_migration(
+            self.config_path,
+            SchemaType.AGENT
+        )
         
         for agent_name, agent_data in config.get('agents', {}).items():
+            # Skip disabled agents
+            if not agent_data.get('enabled', True):
+                continue
+                
             agent = Agent.from_dict(agent_data)
             self.agents[agent_name] = agent
     
@@ -53,6 +65,12 @@ class AgentManager:
             }
         }
         
+        # Add schema version
+        default_config = self.schema_validator.add_version_to_config(
+            default_config,
+            SchemaType.AGENT
+        )
+        
         with open(self.config_path, 'w') as f:
             yaml.dump(default_config, f, default_flow_style=False)
     
@@ -77,11 +95,36 @@ class AgentManager:
             raise ValueError(f"Agent '{name}' not found")
         
         self.active_agents.add(name)
+        
+        # Publish activation event
+        self.event_bus.publish(Event(
+            type=EventType.AGENT_ACTIVATED,
+            data={
+                "agent_name": name,
+                "agent": agent.to_dict(),
+                "active_agents": list(self.active_agents)
+            },
+            source="AgentManager",
+            correlation_id=str(uuid.uuid4())
+        ))
+        
         return agent
     
     def deactivate_agent(self, name: str) -> None:
         """Deactivate an agent"""
-        self.active_agents.discard(name)
+        if name in self.active_agents:
+            self.active_agents.discard(name)
+            
+            # Publish deactivation event
+            self.event_bus.publish(Event(
+                type=EventType.AGENT_DEACTIVATED,
+                data={
+                    "agent_name": name,
+                    "active_agents": list(self.active_agents)
+                },
+                source="AgentManager",
+                correlation_id=str(uuid.uuid4())
+            ))
     
     def get_active_agents(self) -> List[Agent]:
         """Get all currently active agents"""
@@ -95,15 +138,33 @@ class AgentManager:
         if not source or not target:
             raise ValueError("Invalid agent names for handoff")
         
+        # Create correlation ID for related events
+        correlation_id = str(uuid.uuid4())
+        
         # Deactivate source, activate target
         self.deactivate_agent(from_agent)
         self.activate_agent(to_agent)
         
-        # Return handoff protocol if defined
-        return source.handoff_protocols.get(to_agent, {
+        # Get handoff protocol
+        protocol = source.handoff_protocols.get(to_agent, {
             'action': 'standard_handoff',
             'message': f'Transitioning from {from_agent} to {to_agent}'
         })
+        
+        # Publish handoff event
+        self.event_bus.publish(Event(
+            type=EventType.AGENT_ACTIVATED,  # Using existing event type
+            data={
+                "handoff": True,
+                "from_agent": from_agent,
+                "to_agent": to_agent,
+                "protocol": protocol
+            },
+            source="AgentManager",
+            correlation_id=correlation_id
+        ))
+        
+        return protocol
     
     def validate_agent_compatibility(self, agents: List[str]) -> bool:
         """Check if multiple agents can work together"""
