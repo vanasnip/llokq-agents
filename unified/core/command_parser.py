@@ -29,7 +29,8 @@ class CommandParser:
         'phase': 'D3P phase management',
         'workflow': 'Workflow orchestration',
         'team': 'Multi-agent coordination',
-        'agent': 'Agent management'
+        'agent': 'Agent management',
+        'commit': 'Intelligent git commit with branch safety'
     }
     
     def __init__(self, agent_manager: AgentManager):
@@ -73,6 +74,19 @@ class CommandParser:
             activate_match = re.search(r'--activate\s+"([^"]+)"', command)
             if activate_match:
                 options['activate'] = activate_match.group(1).split(',')
+        
+        # Extract commit options
+        if base_command == 'commit':
+            if '--all' in command:
+                options['all'] = True
+            if '--single' in command:
+                options['single'] = True
+            if '--dry-run' in command:
+                options['dry_run'] = True
+            if '--force-branch' in command:
+                options['force_branch'] = True
+            if '--skip-safety' in command:
+                options['skip_safety'] = True
         
         return ParsedCommand(
             base_command=base_command,
@@ -130,6 +144,14 @@ class CommandParser:
         help_text += "\nAgent Activation:\n"
         help_text += "  Use --<agent> to activate specific agents\n"
         help_text += "  Example: /code --backend --frontend\n"
+        
+        help_text += "\nCommit Command Options:\n"
+        help_text += "  /commit [options]\n"
+        help_text += "  --all         Include all modified/untracked files\n"
+        help_text += "  --single      Force all changes into single commit\n"
+        help_text += "  --dry-run     Preview commits without creating them\n"
+        help_text += "  --force-branch Force branch creation\n"
+        help_text += "  --skip-safety Skip protected branch check\n"
         
         help_text += "\nAvailable Agents:\n"
         for agent in self.agent_manager.agents.values():

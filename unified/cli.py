@@ -216,6 +216,10 @@ class UnifiedCLI:
                     console.print(f"[green]{result['message']}[/green]")
                     if 'mcp_config' in result:
                         console.print(f"[cyan]MCP Priority:[/cyan] {', '.join(result['mcp_config']['priority_order'])}")
+                    
+                    # Handle PR prompt for commit command
+                    if result.get('prompt_pr', False):
+                        self._handle_pr_prompt()
                 else:
                     console.print(f"[red]{result['message']}[/red]")
         
@@ -272,6 +276,29 @@ class UnifiedCLI:
             table.add_row(f"/workflow {cmd}", name, desc)
         
         console.print(table)
+    
+    def _handle_pr_prompt(self):
+        """Handle the pull request creation prompt"""
+        console.print("")
+        console.print("Would you like to create a pull request? (y/n): ", end="")
+        
+        while True:
+            response = input().strip().lower()
+            
+            if response == 'y':
+                console.print("")
+                console.print("[cyan]Creating pull request...[/cyan]")
+                # Execute /pr command
+                self.execute_command("/pr")
+                break
+            elif response == 'n':
+                console.print("")
+                console.print("[green]✅ Commits created successfully. You can create a PR later with /pr[/green]")
+                break
+            else:
+                console.print("")
+                console.print("Please enter 'y' for yes or 'n' for no.")
+                console.print("Would you like to create a pull request? (y/n): ", end="")
     
     def show_workflow_status(self, status: Dict[str, Any]):
         """Display workflow status"""
