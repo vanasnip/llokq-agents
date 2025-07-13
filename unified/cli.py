@@ -199,6 +199,13 @@ class UnifiedCLI:
                 agents = [self.agent_manager.get_agent(name) for name in parsed.agents]
                 agents = [a for a in agents if a]  # Filter None values
                 
+                # Check if discourse agent is active
+                discourse_mode = any(a.name == 'discourse' for a in agents)
+                
+                # Create executor with discourse mode if needed
+                if discourse_mode and not getattr(self.command_executor, 'discourse_mode', False):
+                    self.command_executor = CommandExecutor(discourse_mode=True)
+                
                 result = self.command_executor.execute(parsed, agents)
                 
                 console.print(f"\n[bold]Executing:[/bold] {parsed.base_command}")

@@ -10,17 +10,20 @@ from unified.agents import Agent
 from unified.core.command_parser import ParsedCommand
 from unified.validation import get_command_validator, get_input_validator
 from unified.tools import ToolContext, CommandExecutionTool
+from unified.agents.discourse import DiscourseContext, discourse_safe
 
 
 class CommandExecutor:
     """Executes commands with agent-specific context and MCP preferences"""
     
-    def __init__(self, working_dir: Optional[Path] = None):
+    def __init__(self, working_dir: Optional[Path] = None, discourse_mode: bool = False):
         self.working_dir = working_dir or Path.cwd()
         self.execution_history = []
         self.command_validator = get_command_validator()
         self.input_validator = get_input_validator()
         self.command_tool = CommandExecutionTool()
+        self.discourse_mode = discourse_mode
+        self.discourse_context = DiscourseContext() if discourse_mode else None
     
     def execute(self, command: ParsedCommand, agents: List[Agent]) -> Dict[str, Any]:
         """Execute a command with agent context and validation"""
@@ -62,7 +65,8 @@ class CommandExecutor:
             'mcp_preferences': set(),
             'decision_frameworks': [],
             'success_metrics': [],
-            'focus_areas': []
+            'focus_areas': [],
+            'discourse_context': self.discourse_context
         }
         
         # Aggregate agent attributes
@@ -77,6 +81,7 @@ class CommandExecutor:
         
         return context
     
+    @discourse_safe()
     def _execute_code(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute coding tasks with agent guidance"""
         agents = context['agents']
@@ -111,6 +116,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_design(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute design tasks with agent guidance"""
         agents = context['agents']
@@ -153,6 +159,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_analyze(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute analysis tasks with agent guidance"""
         agents = context['agents']
@@ -176,6 +183,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_test(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute testing tasks with agent guidance"""
         agents = context['agents']
@@ -218,6 +226,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_deploy(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute deployment tasks with agent guidance"""
         agents = context['agents']
@@ -327,3 +336,8 @@ Success Metrics: {agent.success_metrics}
         'code', 'design', 'analyze', 'test', 'deploy',
         'phase', 'workflow', 'team', 'agent'
     }
+
+# Mark mutating methods for discourse mode
+CommandExecutor._execute_code._mutates = True
+CommandExecutor._execute_test._mutates = True  
+CommandExecutor._execute_deploy._mutates = True
