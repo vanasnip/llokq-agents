@@ -3,10 +3,13 @@ Command Executor - Handles actual execution of commands with agent context
 """
 import subprocess
 import json
+import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from unified.agents import Agent
 from unified.core.command_parser import ParsedCommand
+from unified.validation import get_command_validator, get_input_validator
+from unified.tools import ToolContext, CommandExecutionTool
 
 
 class CommandExecutor:
@@ -15,9 +18,21 @@ class CommandExecutor:
     def __init__(self, working_dir: Optional[Path] = None):
         self.working_dir = working_dir or Path.cwd()
         self.execution_history = []
+        self.command_validator = get_command_validator()
+        self.input_validator = get_input_validator()
+        self.command_tool = CommandExecutionTool()
     
     def execute(self, command: ParsedCommand, agents: List[Agent]) -> Dict[str, Any]:
-        """Execute a command with agent context"""
+        """Execute a command with agent context and validation"""
+        # Validate command
+        validation_errors = self._validate_command(command)
+        if validation_errors:
+            return {
+                'status': 'error',
+                'message': 'Validation failed',
+                'errors': validation_errors
+            }
+        
         # Build execution context
         context = self._build_context(command, agents)
         
@@ -274,6 +289,41 @@ Success Metrics: {agent.success_metrics}
         
         return mcp_config
     
+    def _validate_command(self, command: ParsedCommand) -> List[str]:
+        """Validate command for safety and correctness"""
+        errors = []
+        
+        # Validate base command
+        if command.base_command not in self.ALLOWED_COMMANDS:
+            errors.append(f"Unknown command: {command.base_command}")
+        
+        # Validate agent names
+        for agent_name in command.agents:
+            if not re.match(r'^[a-z][a-z0-9_-]*$', agent_name):
+                errors.append(f"Invalid agent name format: {agent_name}")
+        
+        # Validate options based on command type
+        if command.base_command == 'code' and command.options:
+            # Validate code-specific options
+            if 'file' in command.options:
+                file_errors = self.input_validator.validate('file_path', {'path': command.options['file']})
+                errors.extend(file_errors)
+        
+        elif command.base_command == 'deploy' and command.options:
+            # Validate deployment options
+            if 'environment' in command.options:
+                allowed_envs = ['development', 'staging', 'production']
+                if command.options['environment'] not in allowed_envs:
+                    errors.append(f"Invalid environment: {command.options['environment']}")
+        
+        return errors
+    
     def get_execution_history(self) -> List[Dict[str, Any]]:
         """Get history of executed commands"""
         return self.execution_history
+    
+    # Class-level allowed commands
+    ALLOWED_COMMANDS = {
+        'code', 'design', 'analyze', 'test', 'deploy',
+        'phase', 'workflow', 'team', 'agent'
+    }

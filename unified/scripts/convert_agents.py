@@ -9,7 +9,25 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from unified.agents.schema import Agent, AgentCategory
+from unified.agents.schema import Agent, AgentCategory, RiskProfile
+
+
+def normalize_risk_profile(risk_str: str) -> str:
+    """Normalize risk profile string to match RiskProfile enum values"""
+    risk_str = risk_str.lower()
+    
+    # Handle special cases and mappings
+    if 'zero tolerance' in risk_str:
+        return 'zero_tolerance'
+    elif 'conservative' in risk_str:
+        return 'conservative'
+    elif 'aggressive' in risk_str:
+        return 'aggressive'
+    elif 'balanced' in risk_str or 'pragmatic' in risk_str:
+        return 'balanced'
+    else:
+        # Default to balanced for unknown values
+        return 'balanced'
 
 
 def convert_design_agents(design_agents_path: Path) -> dict:
@@ -46,7 +64,7 @@ def convert_design_agents(design_agents_path: Path) -> dict:
             'core_belief': agent_data.get('Core_Belief', ''),
             'primary_question': agent_data.get('Primary_Question', ''),
             'decision_framework': agent_data.get('Decision_Framework', ''),
-            'risk_profile': agent_data.get('Risk_Profile', 'balanced').lower(),
+            'risk_profile': normalize_risk_profile(agent_data.get('Risk_Profile', 'balanced')),
             'success_metrics': agent_data.get('Success_Metrics', ''),
             'communication_style': agent_data.get('Communication_Style', ''),
             'problem_solving': agent_data.get('Problem_Solving', ''),
@@ -124,7 +142,7 @@ def convert_dev_agents(dev_agents_path: Path) -> dict:
             'core_belief': agent_data.get('Core_Belief', ''),
             'primary_question': agent_data.get('Primary_Question', ''),
             'decision_framework': agent_data.get('Decision_Framework', ''),
-            'risk_profile': agent_data.get('Risk_Profile', 'balanced').lower(),
+            'risk_profile': normalize_risk_profile(agent_data.get('Risk_Profile', 'balanced')),
             'success_metrics': agent_data.get('Success_Metrics', ''),
             'communication_style': agent_data.get('Communication_Style', ''),
             'problem_solving': agent_data.get('Problem_Solving', ''),

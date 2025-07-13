@@ -5,7 +5,10 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from pathlib import Path
 import yaml
+import uuid
 from unified.agents import Agent, AgentManager
+from unified.core.event_bus import get_event_bus, Event, EventType
+from unified.core.schema_version import get_schema_validator, SchemaType
 
 
 @dataclass
@@ -34,15 +37,21 @@ class PhaseManager:
         self.phases: Dict[int, Phase] = {}
         self.current_phase: int = 1
         self.phase_artifacts: Dict[int, Dict[str, bool]] = {}
+        self.event_bus = get_event_bus()
+        self.schema_validator = get_schema_validator()
         self._load_phases()
+        self._publish_phase_started()
     
     def _load_phases(self) -> None:
-        """Load phase definitions from configuration"""
+        """Load phase definitions from configuration with schema migration"""
         if not self.config_path.exists():
-            self._create_default_phases()
+            self._create_default_d3p_phases()
         
-        with open(self.config_path, 'r') as f:
-            config = yaml.safe_load(f)
+        # Load with schema migration
+        config = self.schema_validator.load_config_with_migration(
+            self.config_path,
+            SchemaType.PHASE
+        )
         
         for phase_num, phase_data in config.get('phases', {}).items():
             self.phases[int(phase_num)] = Phase(
@@ -56,7 +65,7 @@ class PhaseManager:
                 parallel=phase_data.get('parallel', False)
             )
     
-    def _create_default_phases(self) -> None:
+    def _create_default_d3p_phases(self) -> None:
         """Create default D3P phases configuration"""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -148,6 +157,12 @@ class PhaseManager:
             }
         }
         
+        # Add schema version
+        default_phases = self.schema_validator.add_version_to_config(
+            default_phases,
+            SchemaType.PHASE
+        )
+        
         with open(self.config_path, 'w') as f:
             yaml.dump(default_phases, f, default_flow_style=False)
     
@@ -168,8 +183,17 @@ class PhaseManager:
         
         # Move to next phase
         if self.current_phase < 10:
+            old_phase = self.current_phase
             self.current_phase += 1
+            
+            # Publish phase completed event
+            self._publish_phase_completed(old_phase)
+            
             self._activate_phase_agents()
+            
+            # Publish phase started event
+            self._publish_phase_started()
+            
             return True
         
         return False
@@ -179,8 +203,23 @@ class PhaseManager:
         if phase_number not in self.phases:
             return False
         
+        old_phase = self.current_phase
         self.current_phase = phase_number
+        
+        # Publish phase change event
+        self.event_bus.publish(Event(
+            type=EventType.PHASE_CHANGED,
+            data={
+                "from_phase": old_phase,
+                "to_phase": phase_number,
+                "phase_name": self.phases[phase_number].name
+            },
+            source="PhaseManager",
+            correlation_id=str(uuid.uuid4())
+        ))
+        
         self._activate_phase_agents()
+        self._publish_phase_started()
         return True
     
     def _activate_phase_agents(self) -> None:
@@ -206,6 +245,20 @@ class PhaseManager:
             self.phase_artifacts[self.current_phase] = {}
         
         self.phase_artifacts[self.current_phase][output] = True
+        
+        # Check if phase is now complete
+        current = self.get_current_phase()
+        if current and current.is_complete(self.phase_artifacts[self.current_phase]):
+            # Phase just completed
+            self.event_bus.publish(Event(
+                type=EventType.PHASE_COMPLETED,
+                data={
+                    "phase": self.current_phase,
+                    "phase_name": current.name,
+                    "outputs": list(self.phase_artifacts[self.current_phase].keys())
+                },
+                source="PhaseManager"
+            ))
     
     def get_phase_status(self) -> Dict[str, Any]:
         """Get detailed status of current phase"""
@@ -247,3 +300,35 @@ class PhaseManager:
             validation_results[criteria] = True  # Placeholder
         
         return validation_results
+    
+    def _publish_phase_started(self) -> None:
+        """Publish phase started event"""
+        current = self.get_current_phase()
+        if current:
+            self.event_bus.publish(Event(
+                type=EventType.PHASE_STARTED,
+                data={
+                    "phase": self.current_phase,
+                    "phase_name": current.name,
+                    "lead_agent": current.lead_agent,
+                    "agents": current.agents,
+                    "parallel": current.parallel
+                },
+                source="PhaseManager",
+                correlation_id=str(uuid.uuid4())
+            ))
+    
+    def _publish_phase_completed(self, phase_number: int) -> None:
+        """Publish phase completed event"""
+        phase = self.phases.get(phase_number)
+        if phase:
+            self.event_bus.publish(Event(
+                type=EventType.PHASE_COMPLETED,
+                data={
+                    "phase": phase_number,
+                    "phase_name": phase.name,
+                    "outputs": list(self.phase_artifacts.get(phase_number, {}).keys())
+                },
+                source="PhaseManager",
+                correlation_id=str(uuid.uuid4())
+            ))

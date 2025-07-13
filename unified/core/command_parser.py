@@ -2,7 +2,7 @@
 Command Parser - Interprets user commands and applies agent context
 """
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from unified.agents import Agent, AgentManager
 
@@ -92,7 +92,7 @@ class CommandParser:
         
         return len(invalid_agents) == 0, invalid_agents
     
-    def apply_agent_context(self, command: ParsedCommand) -> Dict[str, any]:
+    def apply_agent_context(self, command: ParsedCommand) -> Dict[str, Any]:
         """Apply agent personality and preferences to command execution"""
         context = {
             'command': command.base_command,

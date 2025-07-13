@@ -35,7 +35,7 @@ class Agent:
     core_belief: str
     primary_question: str
     decision_framework: str
-    risk_profile: str
+    risk_profile: RiskProfile
     success_metrics: str
     communication_style: str
     problem_solving: str
