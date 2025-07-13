@@ -1,44 +1,22 @@
 # Unified D3P-SuperClaude Agent System
 
-A comprehensive AI agent development system that combines D3P's rich agent definitions with SuperClaude's elegant command structure. This system provides 15+ specialized AI agents for software development, from requirements gathering through deployment.
+A comprehensive AI agent development system that combines D3P's rich agent definitions with SuperClaude's elegant command structure. This system provides 15+ specialized AI agents for software development.
 
-## 🌟 Features
+## 🌟 Key Features
 
-- **15 Specialized AI Agents**: Each with unique personalities, decision frameworks, and expertise
-- **Elegant Command System**: Simple, intuitive commands like `/code --backend --frontend`
-- **Multi-Agent Workflows**: Pre-built workflows for feature development, bug investigation, and security audits
-- **D3P Phase Management**: 10-phase development protocol from vision to documentation
-- **Rich Agent Context**: Each agent brings core beliefs, success metrics, and problem-solving approaches
-- **MCP Integration**: Agent-specific tool preferences (filesystem, shell, memory, etc.)
-
-## 📋 Prerequisites
-
-- Python 3.8+
-- Git
-- Basic understanding of command-line interfaces
+- **15 Specialized AI Agents** - From requirements to deployment
+- **Elegant Command System** - Simple, intuitive commands
+- **Multi-Agent Workflows** - Pre-built development workflows
+- **Security & Validation** - Built-in sandboxing and input validation
+- **Event-Driven Architecture** - Decoupled, scalable design
 
 ## 🚀 Quick Start
-
-### Option 1: Install from Package (Recommended)
 
 ```bash
 # Clone and install
 git clone <repository-url>
 cd agents
 pip install -e .
-
-# First time setup (automatic)
-unified-agents setup
-
-# Start using
-unified-agents interactive
-```
-
-### Option 2: Install Globally
-
-```bash
-# Install directly from git
-pip install git+https://github.com/yourusername/agents.git
 
 # Run setup
 unified-agents setup
@@ -47,266 +25,106 @@ unified-agents setup
 unified-agents interactive
 ```
 
-### Option 3: Development Mode
+For detailed installation options, see [Installation Guide](docs/installation.md).
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd agents
+## 📖 Documentation
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+- [Installation Guide](docs/installation.md) - Detailed setup instructions
+- [Command Reference](docs/commands.md) - Complete command documentation
+- [Agent Catalog](docs/agents.md) - All available agents and their capabilities
+- [Workflow Guide](docs/workflows.md) - Pre-built and custom workflows
+- [Architecture Overview](docs/architecture.md) - System design and components
 
-# Install in development mode
-pip install -e .
+### Advanced Topics
 
-# Start developing
-unified-agents demo
-```
-
-That's it! The system automatically handles agent configuration on first run.
+- [Custom Validation Rules](docs/custom-validation-rules.md) - Writing validation rules
+- [Schema Migration CLI](docs/schema-migration-cli.md) - Managing configuration versions
+- [Sandbox Framework](docs/sandbox.md) - Secure execution environment
+- [D3P Protocol](docs/d3p-protocol.md) - Development phases and methodology
 
 ## 🤖 Available Agents
 
-### Design Agents (5)
-- **aura** - Accessibility & Usability Review Assistant
-- **motion_maestra** - AI Motion Design Strategist  
-- **chromatic_architect** - Brand Theme Development Specialist
-- **layout_loom** - AI Design Layout Specialist
-- **riley** - Requirements Discovery Specialist
+The system includes 15 specialized agents across 5 categories:
 
-### Architecture Agents (2)
-- **architect** - System Architecture Specialist
-- **api** - API Design Specialist
+- **Design** (5): UI/UX, accessibility, branding, layout, requirements
+- **Architecture** (2): System design, API design
+- **Development** (4): Backend, frontend, data, mobile
+- **Quality** (3): QA, security, performance
+- **Operations** (1): DevOps and platform engineering
 
-### Development Agents (4)
-- **backend** - Backend Development Specialist
-- **frontend** - Frontend Architecture Specialist
-- **data** - Data Engineering Specialist
-- **mobile** - Mobile Development Specialist
+See the [Agent Catalog](docs/agents.md) for detailed information.
 
-### Quality Agents (3)
-- **qa** - Quality Assurance Specialist
-- **security** - Security Engineering Specialist
-- **performance** - Performance Engineering Specialist
-
-### Operations Agents (1)
-- **devops** - DevOps & Platform Engineering Specialist
-
-## 💻 Usage
-
-After installation, you can use the `unified-agents` command (or `ua` for short):
+## 💻 Basic Usage
 
 ```bash
-# Quick commands
-unified-agents agents       # List all available agents
-unified-agents demo         # Run a demonstration
-unified-agents interactive  # Start interactive mode
-unified-agents status       # Show current phase
-unified-agents info backend # Get agent details
+# List agents
+unified-agents agents
 
-# Or use the short alias
-ua agents
-ua interactive
-ua demo
+# Get agent info
+unified-agents info backend
+
+# Start interactive mode
+unified-agents interactive
 ```
 
-### Interactive Mode Commands
-
-Once in interactive mode, use these commands:
+In interactive mode:
 
 ```bash
-# Agent commands
-/agent --list               # List all available agents
-/agent --info backend       # Get detailed info about an agent
-
-# Execute commands with specific agents
+# Execute with agents
 /code --backend --frontend
 /design --aura --layout_loom
 /test --qa --security
-/analyze --architect
-/deploy --devops
+
+# Run workflows
+/workflow feature
+/workflow bug
+/workflow security
 ```
 
-### Workflow Commands
+See [Command Reference](docs/commands.md) for all commands.
 
-```bash
-# Start a workflow
-/workflow feature    # Feature development workflow
-/workflow bug       # Bug investigation workflow
-/workflow security  # Security audit workflow
+## 🛡️ Security Features
 
-# Check workflow status
-/workflow --status
+- **Sandboxed Execution** - Isolated environments for untrusted code
+- **Input Validation** - Comprehensive validation framework
+- **Command Filtering** - Whitelist-based command execution
+- **Resource Limits** - Memory, CPU, and file size restrictions
 
-# Execute next step
-/workflow --next
-```
+Learn more in [Security Documentation](docs/sandbox.md).
 
-### Phase Management
+## 🔧 Configuration
 
-```bash
-# Show current D3P phase
-/phase --current
+Configuration files are stored in `~/.claude/`:
+- `agents.yml` - Agent definitions
+- `workflows.yml` - Workflow configurations
+- `settings.yml` - System settings
 
-# Move to next phase
-/phase --next
+See [Configuration Guide](docs/configuration.md) for details.
 
-# Jump to specific phase
-/phase --goto 3
-```
+## 🚧 Development Status
 
-### Multi-Agent Operations
+### Recently Completed
+- ✅ Phase 3: Architecture Improvements (Event Bus, Async Workflows)
+- ✅ Phase 4: Security & Validation (Tools, Validation, Sandboxing)
 
-```bash
-# Activate multiple agents
-/team --activate "backend,frontend,qa"
+### Upcoming
+- 🔄 Plugin Architecture
+- 🔄 GraphQL API
+- 🔄 Web UI for Workflow Visualization
 
-# Perform agent handoff
-/agent --handoff
-```
+## 🤝 Contributing
 
-## 🔄 Workflows
-
-### Feature Development Workflow
-1. **Requirements Discovery** (riley, architect)
-2. **Architecture Design** (architect, api)
-3. **UI/UX Design** (layout_loom, chromatic_architect, aura)
-4. **Implementation** (backend, frontend)
-5. **Testing** (qa, security, performance)
-6. **Deployment** (devops)
-
-### Bug Investigation Workflow
-1. **Triage** (qa)
-2. **Root Cause Analysis** (backend, frontend, architect)
-3. **Fix Implementation** (backend, frontend)
-4. **Verification** (qa)
-5. **Deployment** (devops)
-
-### Security Audit Workflow
-1. **Threat Modeling** (security, architect)
-2. **Vulnerability Scanning** (security)
-3. **Remediation** (security, backend, devops)
-4. **Verification** (security, qa)
-
-## 📁 Project Structure
-
-```
-agents/
-├── unified/                    # Main unified system
-│   ├── agents/                # Agent management
-│   │   ├── schema.py         # Agent data model
-│   │   └── manager.py        # Agent loading/activation
-│   ├── core/                  # Core components
-│   │   ├── command_parser.py # Command parsing
-│   │   ├── command_executor.py # Command execution
-│   │   └── phase_manager.py  # D3P phase management
-│   ├── workflows/             # Workflow engine
-│   │   └── engine.py         # Workflow orchestration
-│   ├── cli.py                # Interactive CLI
-│   └── demo.py               # Demonstration script
-├── design_agents/             # Original design agent definitions
-├── dev_agents/               # Original dev agent definitions
-├── d3p/                      # D3P protocol definitions
-└── orchestration/            # Workflow templates
-```
-
-## 🎯 D3P Phases
-
-The system follows the Dialogue-Driven Development Protocol (D3P) with 10 phases:
-
-1. **Vision & Requirements** - Establish project goals
-2. **Architecture & Planning** - Design system architecture
-3. **Design System** - Create UI/UX designs
-4. **Development Setup** - Configure development environment
-5. **Core Implementation** - Build core features
-6. **Testing & Security** - Comprehensive testing
-7. **Refinement** - Optimize and polish
-8. **Deployment Preparation** - Prepare for production
-9. **Production Release** - Deploy to production
-10. **Documentation & Handoff** - Complete documentation
-
-## 🛠️ Configuration
-
-### Agent Configuration
-Agents are defined in `~/.claude/agents.yml` with:
-- Identity and role
-- Core beliefs and values
-- Decision frameworks
-- Success metrics
-- MCP tool preferences
-- Compatible agents for collaboration
-
-### Custom Workflows
-Create new workflows by adding to `workflows/engine.py`:
-```python
-custom_workflow = Workflow(
-    name="custom_workflow",
-    type="custom",
-    description="Your custom workflow",
-    steps=[
-        WorkflowStep(
-            name="step_name",
-            agents=["agent1", "agent2"],
-            command="/command --agent1 --agent2",
-            required_outputs=["output.md"]
-        )
-    ]
-)
-```
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Import Errors**
-   ```bash
-   # Ensure PYTHONPATH is set
-   export PYTHONPATH=/path/to/agents
-   ```
-
-2. **Agent Not Found**
-   ```bash
-   # Regenerate agent configuration
-   python scripts/convert_agents.py
-   cp config/agents.yml ~/.claude/agents.yml
-   ```
-
-3. **Command Not Recognized**
-   ```bash
-   # Commands must start with /
-   /code --backend  # Correct
-   code --backend   # Incorrect
-   ```
-
-## 🚧 Future Enhancements
-
-- [ ] Real command execution integration
-- [ ] Persistent workflow state
-- [ ] Web-based UI
-- [ ] Custom agent creation
-- [ ] Plugin system for extensions
-- [ ] Integration with development tools
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
 
 ## 📄 License
 
 [Your License Here]
 
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
 ## 📞 Support
 
-For issues and questions:
-- Create an issue on GitHub
-- Check existing documentation in `/docs`
-- Review the demo script for examples
+- GitHub Issues: [Create an issue](https://github.com/yourusername/agents/issues)
+- Documentation: Check `/docs` folder
+- Examples: Review demo scripts
 
 ---
 
