@@ -14,19 +14,21 @@ from rich.panel import Panel
 
 # Handle imports whether installed or running from source
 try:
+    from unified import __version__
     from unified.agents.manager import AgentManager
     from unified.core.command_parser import CommandParser
     from unified.core.phase_manager import PhaseManager
     from unified.core.command_executor import CommandExecutor
     from unified.workflows.engine import WorkflowEngine
 except ImportError:
-    # Add current directory to path for development
-    sys.path.insert(0, str(Path(__file__).parent))
-    from agents.manager import AgentManager
-    from core.command_parser import CommandParser
-    from core.phase_manager import PhaseManager
-    from core.command_executor import CommandExecutor
-    from workflows.engine import WorkflowEngine
+    # Add parent directory to path for development
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from unified import __version__
+    from unified.agents.manager import AgentManager
+    from unified.core.command_parser import CommandParser
+    from unified.core.phase_manager import PhaseManager
+    from unified.core.command_executor import CommandExecutor
+    from unified.workflows.engine import WorkflowEngine
 
 console = Console()
 
@@ -292,7 +294,7 @@ State: {status['state']}
 
 
 @click.group()
-@click.version_option(version='0.1.0', prog_name='unified-agents')
+@click.version_option(version=__version__, prog_name='unified-agents')
 def cli():
     """Unified D3P-SuperClaude Agent System
     
