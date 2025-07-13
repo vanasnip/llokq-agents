@@ -2,6 +2,12 @@
 Setup script for Unified Agent System
 """
 from setuptools import setup, find_packages
+import os
+import sys
+
+# Add parent directory to path to import version
+sys.path.insert(0, os.path.abspath('.'))
+from unified import __version__
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -11,7 +17,7 @@ with open("unified/requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="unified-agents",
-    version="0.1.0",
+    version=__version__,
     author="AI Agent Development Team",
     description="Unified D3P-SuperClaude Agent System",
     long_description=long_description,
@@ -31,6 +37,18 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=requirements,
+    extras_require={
+        "dev": [
+            "pytest>=7.0.0",
+            "pytest-cov>=4.0.0",
+            "pytest-mock>=3.10.0",
+            "pytest-asyncio>=0.20.0",
+            "mypy>=1.0.0",
+            "ruff>=0.1.0",
+            "black>=23.0.0",
+            "pre-commit>=3.0.0",
+        ]
+    },
     entry_points={
         "console_scripts": [
             "unified-agents=unified.cli:cli",
