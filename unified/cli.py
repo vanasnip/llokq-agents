@@ -45,6 +45,7 @@ class UnifiedCLI:
         self.phase_manager = PhaseManager(self.agent_manager)
         self.command_executor = CommandExecutor()
         self.workflow_engine = WorkflowEngine(self.agent_manager, self.phase_manager)
+        self.discourse_handler = None  # Lazy load when needed
     
     def _ensure_agent_config(self):
         """Ensure agent configuration exists, convert if needed"""
@@ -121,6 +122,12 @@ class UnifiedCLI:
     
     def execute_command(self, command_str: str):
         """Parse and execute a command"""
+        # Check if we're in discourse mode
+        if self.discourse_handler and self.discourse_handler.in_discourse_mode:
+            # Try discourse commands first
+            if self.discourse_handler.handle_command(command_str):
+                return
+        
         try:
             # Parse command
             parsed = self.command_parser.parse(command_str)
@@ -202,9 +209,13 @@ class UnifiedCLI:
                 # Check if discourse agent is active
                 discourse_mode = any(a.name == 'discourse' for a in agents)
                 
-                # Create executor with discourse mode if needed
-                if discourse_mode and not getattr(self.command_executor, 'discourse_mode', False):
-                    self.command_executor = CommandExecutor(discourse_mode=True)
+                # Initialize discourse handler if discourse agent is used
+                if discourse_mode:
+                    if not self.discourse_handler:
+                        self._init_discourse_handler()
+                    # Create executor with discourse mode if needed
+                    if not getattr(self.command_executor, 'discourse_mode', False):
+                        self.command_executor = CommandExecutor(discourse_mode=True)
                 
                 result = self.command_executor.execute(parsed, agents)
                 
@@ -276,6 +287,18 @@ class UnifiedCLI:
             table.add_row(f"/workflow {cmd}", name, desc)
         
         console.print(table)
+    
+    def _init_discourse_handler(self):
+        """Initialize discourse handler"""
+        from unified.agents.discourse import DiscourseAgent
+        from unified.agents.discourse.cli_handler import DiscourseCLIHandler
+        
+        # Get discourse agent
+        discourse_agent_config = self.agent_manager.get_agent('discourse')
+        if discourse_agent_config:
+            discourse = DiscourseAgent(discourse_agent_config)
+            self.discourse_handler = DiscourseCLIHandler(discourse)
+            self.discourse_handler.enter_discourse_mode()
     
     def _handle_pr_prompt(self):
         """Handle the pull request creation prompt"""
@@ -367,12 +390,17 @@ def info(agent_name):
 
 
 @cli.command()
-def interactive():
+@click.option('--discourse', is_flag=True, help='Start in discourse mode')
+def interactive(discourse):
     """Start interactive mode"""
     unified_cli = UnifiedCLI()
     
-    console.print("\n[bold cyan]Unified D3P-SuperClaude System[/bold cyan]")
-    console.print("Type '/help' for available commands or 'exit' to quit\n")
+    # Start in discourse mode if requested
+    if discourse:
+        unified_cli._init_discourse_handler()
+    else:
+        console.print("\n[bold cyan]Unified D3P-SuperClaude System[/bold cyan]")
+        console.print("Type '/help' for available commands or 'exit' to quit\n")
     
     while True:
         try:
