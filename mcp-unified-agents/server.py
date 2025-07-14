@@ -2,6 +2,9 @@
 """
 Unified Agents MCP Server - Lean MVP
 Exposes 3 core agents (QA, Backend, Architect) via Model Context Protocol
+
+Note: This MVP processes requests serially by design for simplicity.
+TODO: Implement asyncio event loop only if concurrent tool execution becomes necessary.
 """
 import json
 import sys
@@ -9,59 +12,124 @@ import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    print("Warning: PyYAML not installed. Install with: pip install PyYAML", file=sys.stderr)
-    # Fallback to JSON format
-    yaml = None
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
+# JSON Schema for agent manifest validation
+AGENT_MANIFEST_SCHEMA = {
+    "type": "object",
+    "required": ["version", "agents"],
+    "properties": {
+        "version": {"type": "string"},
+        "agents": {
+            "type": "object",
+            "patternProperties": {
+                "^[a-z_]+$": {
+                    "type": "object",
+                    "required": ["name", "description", "tools"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "description": {"type": "string"},
+                        "tools": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["name", "description", "parameters"],
+                                "properties": {
+                                    "name": {"type": "string", "pattern": "^ua_[a-z]+_[a-z_]+$"},
+                                    "description": {"type": "string"},
+                                    "parameters": {"type": "object"}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+def validate_manifest(data: Dict[str, Any]) -> None:
+    """Validate agent manifest against schema"""
+    # Simple validation without external dependencies
+    if not isinstance(data, dict):
+        raise ValueError("Manifest must be a JSON object")
+    
+    if "version" not in data:
+        raise ValueError("Manifest missing required field: version")
+    
+    if "agents" not in data:
+        raise ValueError("Manifest missing required field: agents")
+    
+    if not isinstance(data["agents"], dict):
+        raise ValueError("Agents field must be an object")
+    
+    for agent_id, agent in data["agents"].items():
+        if not isinstance(agent, dict):
+            raise ValueError(f"Agent {agent_id} must be an object")
+        
+        for field in ["name", "description", "tools"]:
+            if field not in agent:
+                raise ValueError(f"Agent {agent_id} missing required field: {field}")
+        
+        if not isinstance(agent["tools"], list):
+            raise ValueError(f"Agent {agent_id} tools must be an array")
+        
+        for i, tool in enumerate(agent["tools"]):
+            if not isinstance(tool, dict):
+                raise ValueError(f"Agent {agent_id} tool {i} must be an object")
+            
+            for field in ["name", "description", "parameters"]:
+                if field not in tool:
+                    raise ValueError(f"Agent {agent_id} tool {i} missing required field: {field}")
+            
+            # Validate tool name pattern
+            if not tool["name"].startswith("ua_"):
+                raise ValueError(f"Tool name must start with 'ua_': {tool['name']}")
+
+
 class UnifiedAgentServer:
     """MCP server that exposes unified agents as tools"""
     
-    def __init__(self, manifest_path: str = "agents.yaml"):
+    def __init__(self, manifest_path: str = "agents.json"):
         self.manifest_path = Path(manifest_path)
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
         
     def _load_agents(self) -> Dict[str, Any]:
-        """Load agent manifest from YAML or JSON"""
+        """Load agent manifest from JSON"""
         try:
-            # Try YAML first if available
-            if yaml and self.manifest_path.suffix == '.yaml':
-                with open(self.manifest_path) as f:
-                    data = yaml.safe_load(f)
-                    return data.get('agents', {})
-            else:
-                # Fallback to JSON
-                json_path = self.manifest_path.with_suffix('.json')
-                with open(json_path) as f:
-                    data = json.load(f)
-                    return data.get('agents', {})
+            with open(self.manifest_path) as f:
+                data = json.load(f)
+            
+            # Validate manifest structure
+            validate_manifest(data)
+            return data.get('agents', {})
+            
+        except FileNotFoundError:
+            logger.error(f"Manifest file not found: {self.manifest_path}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in manifest: {e}")
+            raise
+        except ValueError as e:
+            logger.error(f"Invalid manifest structure: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to load agents manifest: {e}")
-            return {}
+            raise
     
     def _load_capability_graph(self) -> Dict[str, Any]:
         """Load capability graph from manifest"""
         try:
-            # Try YAML first if available
-            if yaml and self.manifest_path.suffix == '.yaml':
-                with open(self.manifest_path) as f:
-                    data = yaml.safe_load(f)
-                    return data.get('capability_graph', {})
-            else:
-                # Fallback to JSON
-                json_path = self.manifest_path.with_suffix('.json')
-                with open(json_path) as f:
-                    data = json.load(f)
-                    return data.get('capability_graph', {})
+            with open(self.manifest_path) as f:
+                data = json.load(f)
+                return data.get('capability_graph', {})
         except Exception:
+            # Capability graph is optional, return empty if not found
             return {}
     
     def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -77,10 +145,15 @@ class UnifiedAgentServer:
             elif method == 'tools/call':
                 return self._handle_call_tool(request_id, request.get('params', {}))
             else:
-                return self._error_response(request_id, f"Unknown method: {method}")
+                return self._error_response(request_id, f"Unknown method: {method}", -32601)
+        except ValueError as e:
+            # Invalid parameters or validation errors
+            logger.error(f"Invalid parameters: {e}")
+            return self._error_response(request_id, str(e), -32602)
         except Exception as e:
+            # Internal server error
             logger.error(f"Error handling request: {e}")
-            return self._error_response(request_id, str(e))
+            return self._error_response(request_id, str(e), -32603)
     
     def _handle_initialize(self, request_id: Any) -> Dict[str, Any]:
         """Handle initialization request"""
@@ -153,14 +226,18 @@ class UnifiedAgentServer:
         arguments = params.get('arguments', {})
         
         # Route to appropriate handler
-        if tool_name.startswith('ua_qa_'):
-            result = self._handle_qa_tool(tool_name, arguments)
-        elif tool_name.startswith('ua_backend_'):
-            result = self._handle_backend_tool(tool_name, arguments)
-        elif tool_name.startswith('ua_architect_'):
-            result = self._handle_architect_tool(tool_name, arguments)
-        else:
-            return self._error_response(request_id, f"Unknown tool: {tool_name}")
+        try:
+            if tool_name.startswith('ua_qa_'):
+                result = self._handle_qa_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_backend_'):
+                result = self._handle_backend_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_architect_'):
+                result = self._handle_architect_tool(tool_name, arguments)
+            else:
+                return self._error_response(request_id, f"Unknown tool: {tool_name}", -32601)
+        except ValueError as e:
+            # Tool-specific errors (unknown tool, missing params)
+            return self._error_response(request_id, str(e), -32602)
         
         return {
             'jsonrpc': '2.0',
@@ -170,53 +247,62 @@ class UnifiedAgentServer:
     
     def _handle_qa_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Handle QA agent tools"""
-        if tool_name == 'ua_qa_test_generate':
-            return {
-                'content': [{
-                    'type': 'text',
-                    'text': self._generate_tests(args['feature'], args.get('test_type', 'unit'))
-                }]
-            }
-        elif tool_name == 'ua_qa_analyze_bug':
-            return {
-                'content': [{
-                    'type': 'text',
-                    'text': self._analyze_bug(args['description'], args.get('stacktrace'))
-                }]
-            }
-        else:
-            raise ValueError(f"Unknown QA tool: {tool_name}")
+        try:
+            if tool_name == 'ua_qa_test_generate':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._generate_tests(args['feature'], args.get('test_type', 'unit'))
+                    }]
+                }
+            elif tool_name == 'ua_qa_analyze_bug':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._analyze_bug(args['description'], args.get('stacktrace'))
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown QA tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
     
     def _handle_backend_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Handle Backend agent tools"""
-        if tool_name == 'ua_backend_api_design':
-            return {
-                'content': [{
-                    'type': 'text',
-                    'text': self._design_api(args['resource'], args['operations'])
-                }]
-            }
-        elif tool_name == 'ua_backend_optimize':
-            return {
-                'content': [{
-                    'type': 'text',
-                    'text': self._optimize_code(args['code'], args.get('metrics'))
-                }]
-            }
-        else:
-            raise ValueError(f"Unknown Backend tool: {tool_name}")
+        try:
+            if tool_name == 'ua_backend_api_design':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._design_api(args['resource'], args['operations'])
+                    }]
+                }
+            elif tool_name == 'ua_backend_optimize':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._optimize_code(args['code'], args.get('metrics'))
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown Backend tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
     
     def _handle_architect_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Handle Architect agent tools"""
-        if tool_name == 'ua_architect_design':
-            return {
-                'content': [{
-                    'type': 'text',
-                    'text': self._design_system(args['requirements'], args.get('constraints', []))
-                }]
-            }
-        else:
-            raise ValueError(f"Unknown Architect tool: {tool_name}")
+        try:
+            if tool_name == 'ua_architect_design':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._design_system(args['requirements'], args.get('constraints', []))
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown Architect tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
     
     # Tool implementation methods
     def _generate_tests(self, feature: str, test_type: str) -> str:
@@ -448,13 +534,21 @@ Based on the description, this appears to be related to:
         
         return design
     
-    def _error_response(self, request_id: Any, message: str) -> Dict[str, Any]:
-        """Generate error response"""
+    def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
+        """Generate error response with proper JSON-RPC error codes
+        
+        Error codes:
+        -32700: Parse error
+        -32600: Invalid Request
+        -32601: Method not found
+        -32602: Invalid params
+        -32603: Internal error
+        """
         return {
             'jsonrpc': '2.0',
             'id': request_id,
             'error': {
-                'code': -32603,
+                'code': code,
                 'message': message
             }
         }
@@ -479,7 +573,7 @@ Based on the description, this appears to be related to:
                 
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON: {e}")
-                error_response = self._error_response(None, "Parse error")
+                error_response = self._error_response(None, "Parse error", -32700)
                 print(json.dumps(error_response))
                 sys.stdout.flush()
             except Exception as e:
