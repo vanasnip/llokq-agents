@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Unified Agents MCP Server - Lean MVP
-Exposes 3 core agents (QA, Backend, Architect) via Model Context Protocol
+Unified Agents MCP Server - With Workflow Orchestration
+Exposes agents via Model Context Protocol with workflow capabilities
 
-Note: This MVP processes requests serially by design for simplicity.
-TODO: Implement asyncio event loop only if concurrent tool execution becomes necessary.
+Phase 2: Adds workflow orchestration and context sharing
 """
 import json
 import sys
 import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+
+# Import workflow components
+from workflow import WorkflowEngine, ContextManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -115,13 +117,20 @@ class SessionState:
 
 
 class UnifiedAgentServer:
-    """MCP server that exposes unified agents as tools"""
+    """MCP server that exposes unified agents as tools with workflow orchestration"""
     
     def __init__(self, manifest_path: str = "agents.json"):
         self.manifest_path = Path(manifest_path)
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
         self.session = SessionState()  # Simple session management
+        
+        # Initialize workflow components
+        self.context_manager = ContextManager()
+        self.workflow_engine = WorkflowEngine(
+            agent_registry=self.agents,
+            context_manager=self.context_manager
+        )
         
     def _load_agents(self) -> Dict[str, Any]:
         """Load agent manifest from JSON"""
@@ -329,6 +338,146 @@ class UnifiedAgentServer:
         
         tools.extend(control_tools)
         
+        # Add workflow tools
+        workflow_tools = [
+            {
+                'name': 'ua_workflow_start',
+                'description': 'Start a workflow template execution',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'template': {
+                            'type': 'string',
+                            'description': 'Workflow template name (e.g., feature_development, bug_fix)'
+                        },
+                        'inputs': {
+                            'type': 'object',
+                            'description': 'Input parameters for the workflow'
+                        },
+                        'require_approval': {
+                            'type': 'boolean',
+                            'description': 'Require approval before starting workflow'
+                        }
+                    },
+                    'required': ['template', 'inputs']
+                }
+            },
+            {
+                'name': 'ua_workflow_status',
+                'description': 'Get workflow execution status',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'workflow_id': {
+                            'type': 'string',
+                            'description': 'Workflow execution ID'
+                        }
+                    },
+                    'required': ['workflow_id']
+                }
+            },
+            {
+                'name': 'ua_workflow_list',
+                'description': 'List all workflow executions',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {}
+                }
+            },
+            {
+                'name': 'ua_workflow_templates',
+                'description': 'List available workflow templates',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {}
+                }
+            },
+            {
+                'name': 'ua_workflow_suggest',
+                'description': 'Suggest workflows for a task',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'task': {
+                            'type': 'string',
+                            'description': 'Task description'
+                        }
+                    },
+                    'required': ['task']
+                }
+            },
+            {
+                'name': 'ua_workflow_create',
+                'description': 'Create a custom workflow template',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {
+                            'type': 'string',
+                            'description': 'Workflow name'
+                        },
+                        'description': {
+                            'type': 'string',
+                            'description': 'Workflow description'
+                        },
+                        'steps': {
+                            'type': 'array',
+                            'description': 'List of workflow steps',
+                            'items': {
+                                'type': 'object',
+                                'properties': {
+                                    'name': {'type': 'string'},
+                                    'agent': {'type': 'string'},
+                                    'tool': {'type': 'string'},
+                                    'input': {'type': 'object'},
+                                    'output': {'type': 'string'}
+                                }
+                            }
+                        }
+                    },
+                    'required': ['name', 'description', 'steps']
+                }
+            },
+            {
+                'name': 'ua_workflow_cancel',
+                'description': 'Cancel a running workflow',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'workflow_id': {
+                            'type': 'string',
+                            'description': 'Workflow execution ID to cancel'
+                        },
+                        'reason': {
+                            'type': 'string',
+                            'description': 'Reason for cancellation'
+                        }
+                    },
+                    'required': ['workflow_id']
+                }
+            },
+            {
+                'name': 'ua_workflow_dry_run',
+                'description': 'Preview what a workflow would do without executing it',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'template': {
+                            'type': 'string',
+                            'description': 'Workflow template name'
+                        },
+                        'inputs': {
+                            'type': 'object',
+                            'description': 'Input parameters for the workflow'
+                        }
+                    },
+                    'required': ['template', 'inputs']
+                }
+            }
+        ]
+        
+        tools.extend(workflow_tools)
+        
         # Add agent-specific tools
         for agent_id, agent in self.agents.items():
             for tool in agent.get('tools', []):
@@ -386,6 +535,8 @@ class UnifiedAgentServer:
                 result = self._handle_discovery_tool(tool_name, arguments)
             elif tool_name in ['ua_suggest_agents', 'ua_approve_agents', 'ua_set_preferences']:
                 result = self._handle_control_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_workflow_'):
+                result = self._handle_workflow_tool(tool_name, arguments)
             elif tool_name.startswith('ua_qa_'):
                 result = self._handle_qa_tool(tool_name, arguments)
             elif tool_name.startswith('ua_backend_'):
@@ -1073,6 +1224,141 @@ Based on the description, this appears to be related to:
                 'total_approved': len(self.session.approved_agents)
             }
         }
+    
+    def _handle_workflow_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle workflow orchestration tools"""
+        try:
+            if tool_name == 'ua_workflow_start':
+                # Start a new workflow
+                result = self.workflow_engine.start_workflow(
+                    template_name=args['template'],
+                    inputs=args['inputs'],
+                    require_approval=args.get('require_approval', False),
+                    session_state=self.session
+                )
+                
+                # Handle approval required case
+                if isinstance(result, dict) and result.get('status') == 'pending_approval':
+                    return {
+                        'content': [{
+                            'type': 'text',
+                            'text': json.dumps(result, indent=2)
+                        }]
+                    }
+                
+                # Normal workflow start
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps({
+                            'workflow_id': result,
+                            'status': 'started',
+                            'template': args['template']
+                        }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_status':
+                # Get workflow status
+                status = self.workflow_engine.get_status(args['workflow_id'])
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(status, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_list':
+                # List all workflows
+                workflows = self.workflow_engine.list_workflows()
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps({
+                            'workflows': workflows,
+                            'total': len(workflows)
+                        }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_templates':
+                # List available templates
+                templates = self.workflow_engine.template_registry.list_templates()
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps({
+                            'templates': templates,
+                            'total': len(templates)
+                        }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_suggest':
+                # Suggest workflows for a task
+                suggestions = self.workflow_engine.suggest_workflow(args['task'])
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps({
+                            'task': args['task'],
+                            'suggestions': suggestions
+                        }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_create':
+                # Create custom workflow
+                template_id = self.workflow_engine.create_custom_workflow(
+                    name=args['name'],
+                    description=args['description'],
+                    steps=args['steps']
+                )
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps({
+                            'template_id': template_id,
+                            'status': 'created',
+                            'name': args['name'],
+                            'steps': len(args['steps'])
+                        }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_cancel':
+                # Cancel workflow
+                result = self.workflow_engine.cancel_workflow(
+                    workflow_id=args['workflow_id'],
+                    reason=args.get('reason')
+                )
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(result, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_dry_run':
+                # Dry run workflow
+                result = self.workflow_engine.dry_run_workflow(
+                    template_name=args['template'],
+                    inputs=args['inputs']
+                )
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(result, indent=2)
+                    }]
+                }
+                
+            else:
+                raise ValueError(f"Unknown workflow tool: {tool_name}")
+                
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
+        except Exception as e:
+            raise ValueError(f"Workflow error: {str(e)}")
     
     def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
         """Generate error response with proper JSON-RPC error codes
