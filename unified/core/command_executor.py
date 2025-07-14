@@ -10,17 +10,22 @@ from unified.agents import Agent
 from unified.core.command_parser import ParsedCommand
 from unified.validation import get_command_validator, get_input_validator
 from unified.tools import ToolContext, CommandExecutionTool
+from unified.agents.discourse import DiscourseContext, discourse_safe
+from unified.tools.git_tools import GitCommitAnalyzer
 
 
 class CommandExecutor:
     """Executes commands with agent-specific context and MCP preferences"""
     
-    def __init__(self, working_dir: Optional[Path] = None):
+    def __init__(self, working_dir: Optional[Path] = None, discourse_mode: bool = False):
         self.working_dir = working_dir or Path.cwd()
         self.execution_history = []
         self.command_validator = get_command_validator()
         self.input_validator = get_input_validator()
         self.command_tool = CommandExecutionTool()
+        self.discourse_mode = discourse_mode
+        self.discourse_context = DiscourseContext() if discourse_mode else None
+        self.git_analyzer = GitCommitAnalyzer()
     
     def execute(self, command: ParsedCommand, agents: List[Agent]) -> Dict[str, Any]:
         """Execute a command with agent context and validation"""
@@ -47,6 +52,8 @@ class CommandExecutor:
             return self._execute_test(context)
         elif command.base_command == 'deploy':
             return self._execute_deploy(context)
+        elif command.base_command == 'commit':
+            return self._execute_commit(context)
         else:
             return {
                 'status': 'error',
@@ -62,7 +69,8 @@ class CommandExecutor:
             'mcp_preferences': set(),
             'decision_frameworks': [],
             'success_metrics': [],
-            'focus_areas': []
+            'focus_areas': [],
+            'discourse_context': self.discourse_context
         }
         
         # Aggregate agent attributes
@@ -77,6 +85,7 @@ class CommandExecutor:
         
         return context
     
+    @discourse_safe()
     def _execute_code(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute coding tasks with agent guidance"""
         agents = context['agents']
@@ -111,6 +120,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_design(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute design tasks with agent guidance"""
         agents = context['agents']
@@ -153,6 +163,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_analyze(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute analysis tasks with agent guidance"""
         agents = context['agents']
@@ -176,6 +187,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_test(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute testing tasks with agent guidance"""
         agents = context['agents']
@@ -218,6 +230,7 @@ Success Metrics: {agent.success_metrics}
         self.execution_history.append(result)
         return result
     
+    @discourse_safe()
     def _execute_deploy(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute deployment tasks with agent guidance"""
         agents = context['agents']
@@ -322,8 +335,104 @@ Success Metrics: {agent.success_metrics}
         """Get history of executed commands"""
         return self.execution_history
     
+    @discourse_safe()
+    def _execute_commit(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute git commit analysis with branch safety"""
+        # Extract options from context
+        options = {
+            'all': context.get('raw_input', '').find('--all') != -1,
+            'single': context.get('raw_input', '').find('--single') != -1,
+            'dry_run': context.get('raw_input', '').find('--dry-run') != -1,
+            'force_branch': context.get('raw_input', '').find('--force-branch') != -1,
+            'skip_safety': context.get('raw_input', '').find('--skip-safety') != -1
+        }
+        
+        # Create tool context
+        tool_context = ToolContext(
+            working_directory=self.working_dir,
+            dry_run=options['dry_run']
+        )
+        
+        # Execute git analysis
+        result = self.git_analyzer.execute(tool_context, options)
+        
+        if result.success:
+            analysis = result.output
+            
+            # Format response
+            response = {
+                'status': 'success',
+                'command': 'commit',
+                'analysis': analysis,
+                'message': self._format_commit_message(analysis, options)
+            }
+            
+            # Add PR prompt flag if needed
+            if analysis.get('should_prompt_pr', False):
+                response['prompt_pr'] = True
+            
+            return response
+        else:
+            return {
+                'status': 'error',
+                'command': 'commit',
+                'message': result.error or 'Git analysis failed'
+            }
+    
+    def _format_commit_message(self, analysis: Dict[str, Any], options: Dict[str, Any]) -> str:
+        """Format the commit analysis message"""
+        lines = []
+        
+        # Branch safety warning
+        if analysis['on_protected_branch'] and not options['skip_safety']:
+            lines.append(f"⚠️  Currently on protected branch: {analysis['current_branch']}")
+            if 'created_branch' in analysis:
+                lines.append(f"✅ Created and switched to: {analysis['created_branch']}")
+            else:
+                lines.append(f"Would create branch: {analysis['suggested_branch']}")
+            lines.append("")
+        
+        # Commit analysis
+        lines.append("📊 COMMIT ANALYSIS")
+        lines.append("━" * 20)
+        
+        if options['dry_run']:
+            lines.append(f"Would create {len(analysis['commit_groups'])} commits:")
+        else:
+            lines.append(f"Created {len(analysis['commit_groups'])} commits:")
+        
+        lines.append("")
+        
+        # Show commits
+        for i, group in enumerate(analysis['commit_groups'], 1):
+            message = f"{group['type']}"
+            if group['scope']:
+                message += f"({group['scope']})"
+            message += f": {group['description']}"
+            
+            if options['dry_run']:
+                lines.append(f"{i}. {message}")
+            else:
+                # Check actual commit results
+                if 'commit_results' in analysis and i <= len(analysis['commit_results']):
+                    result = analysis['commit_results'][i-1]
+                    if result['success']:
+                        lines.append(f"✅ {message}")
+                    else:
+                        lines.append(f"❌ {message} (failed)")
+                else:
+                    lines.append(f"• {message}")
+        
+        return "\n".join(lines)
+    
     # Class-level allowed commands
     ALLOWED_COMMANDS = {
         'code', 'design', 'analyze', 'test', 'deploy',
-        'phase', 'workflow', 'team', 'agent'
+        'phase', 'workflow', 'team', 'agent', 'commit'
     }
+
+# Mark mutating methods for discourse mode
+CommandExecutor._execute_code._mutates = True
+CommandExecutor._execute_test._mutates = True  
+CommandExecutor._execute_deploy._mutates = True
+CommandExecutor._execute_commit._mutates = True

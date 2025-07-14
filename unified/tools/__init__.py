@@ -12,6 +12,7 @@ from unified.tools.file_tools import (
 from unified.tools.process_tools import (
     CommandExecutionTool, ProcessMonitorTool, ProcessKillTool
 )
+from unified.tools.git_tools import GitCommitAnalyzer
 
 __all__ = [
     # Base classes
@@ -23,5 +24,8 @@ __all__ = [
     'FileSearchTool', 'FileHashTool',
     
     # Process tools
-    'CommandExecutionTool', 'ProcessMonitorTool', 'ProcessKillTool'
+    'CommandExecutionTool', 'ProcessMonitorTool', 'ProcessKillTool',
+    
+    # Git tools
+    'GitCommitAnalyzer'
 ]

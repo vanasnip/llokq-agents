@@ -45,6 +45,7 @@ class UnifiedCLI:
         self.phase_manager = PhaseManager(self.agent_manager)
         self.command_executor = CommandExecutor()
         self.workflow_engine = WorkflowEngine(self.agent_manager, self.phase_manager)
+        self.discourse_handler = None  # Lazy load when needed
     
     def _ensure_agent_config(self):
         """Ensure agent configuration exists, convert if needed"""
@@ -121,6 +122,12 @@ class UnifiedCLI:
     
     def execute_command(self, command_str: str):
         """Parse and execute a command"""
+        # Check if we're in discourse mode
+        if self.discourse_handler and self.discourse_handler.in_discourse_mode:
+            # Try discourse commands first
+            if self.discourse_handler.handle_command(command_str):
+                return
+        
         try:
             # Parse command
             parsed = self.command_parser.parse(command_str)
@@ -199,6 +206,17 @@ class UnifiedCLI:
                 agents = [self.agent_manager.get_agent(name) for name in parsed.agents]
                 agents = [a for a in agents if a]  # Filter None values
                 
+                # Check if discourse agent is active
+                discourse_mode = any(a.name == 'discourse' for a in agents)
+                
+                # Initialize discourse handler if discourse agent is used
+                if discourse_mode:
+                    if not self.discourse_handler:
+                        self._init_discourse_handler()
+                    # Create executor with discourse mode if needed
+                    if not getattr(self.command_executor, 'discourse_mode', False):
+                        self.command_executor = CommandExecutor(discourse_mode=True)
+                
                 result = self.command_executor.execute(parsed, agents)
                 
                 console.print(f"\n[bold]Executing:[/bold] {parsed.base_command}")
@@ -209,6 +227,10 @@ class UnifiedCLI:
                     console.print(f"[green]{result['message']}[/green]")
                     if 'mcp_config' in result:
                         console.print(f"[cyan]MCP Priority:[/cyan] {', '.join(result['mcp_config']['priority_order'])}")
+                    
+                    # Handle PR prompt for commit command
+                    if result.get('prompt_pr', False):
+                        self._handle_pr_prompt()
                 else:
                     console.print(f"[red]{result['message']}[/red]")
         
@@ -265,6 +287,41 @@ class UnifiedCLI:
             table.add_row(f"/workflow {cmd}", name, desc)
         
         console.print(table)
+    
+    def _init_discourse_handler(self):
+        """Initialize discourse handler"""
+        from unified.agents.discourse import DiscourseAgent
+        from unified.agents.discourse.cli_handler import DiscourseCLIHandler
+        
+        # Get discourse agent
+        discourse_agent_config = self.agent_manager.get_agent('discourse')
+        if discourse_agent_config:
+            discourse = DiscourseAgent(discourse_agent_config)
+            self.discourse_handler = DiscourseCLIHandler(discourse)
+            self.discourse_handler.enter_discourse_mode()
+    
+    def _handle_pr_prompt(self):
+        """Handle the pull request creation prompt"""
+        console.print("")
+        console.print("Would you like to create a pull request? (y/n): ", end="")
+        
+        while True:
+            response = input().strip().lower()
+            
+            if response == 'y':
+                console.print("")
+                console.print("[cyan]Creating pull request...[/cyan]")
+                # Execute /pr command
+                self.execute_command("/pr")
+                break
+            elif response == 'n':
+                console.print("")
+                console.print("[green]✅ Commits created successfully. You can create a PR later with /pr[/green]")
+                break
+            else:
+                console.print("")
+                console.print("Please enter 'y' for yes or 'n' for no.")
+                console.print("Would you like to create a pull request? (y/n): ", end="")
     
     def show_workflow_status(self, status: Dict[str, Any]):
         """Display workflow status"""
@@ -333,12 +390,17 @@ def info(agent_name):
 
 
 @cli.command()
-def interactive():
+@click.option('--discourse', is_flag=True, help='Start in discourse mode')
+def interactive(discourse):
     """Start interactive mode"""
     unified_cli = UnifiedCLI()
     
-    console.print("\n[bold cyan]Unified D3P-SuperClaude System[/bold cyan]")
-    console.print("Type '/help' for available commands or 'exit' to quit\n")
+    # Start in discourse mode if requested
+    if discourse:
+        unified_cli._init_discourse_handler()
+    else:
+        console.print("\n[bold cyan]Unified D3P-SuperClaude System[/bold cyan]")
+        console.print("Type '/help' for available commands or 'exit' to quit\n")
     
     while True:
         try:

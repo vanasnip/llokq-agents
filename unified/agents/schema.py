@@ -19,6 +19,7 @@ class AgentCategory(Enum):
     OPERATIONS = "operations"
     QUALITY = "quality"
     ARCHITECTURE = "architecture"
+    DISCOURSE = "discourse"  # conversational facilitator (read-only)
 
 
 @dataclass

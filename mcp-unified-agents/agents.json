@@ -1,0 +1,143 @@
+{
+  "version": "1.0",
+  "agents": {
+    "qa": {
+      "name": "QA Agent",
+      "description": "Quality assurance and testing specialist",
+      "personality": "Meticulous, thorough, skeptical",
+      "capabilities": ["test_generation", "bug_analysis", "coverage_analysis"],
+      "tools": [
+        {
+          "name": "ua_qa_test_generate",
+          "description": "Generate test cases for a feature",
+          "parameters": {
+            "feature": {
+              "type": "string",
+              "description": "Feature or component to test"
+            },
+            "test_type": {
+              "type": "string",
+              "enum": ["unit", "integration", "e2e"],
+              "description": "Type of tests to generate"
+            }
+          }
+        },
+        {
+          "name": "ua_qa_analyze_bug",
+          "description": "Analyze bug root cause and suggest fixes",
+          "parameters": {
+            "description": {
+              "type": "string",
+              "description": "Bug description"
+            },
+            "stacktrace?": {
+              "type": "string",
+              "description": "Optional error stacktrace"
+            }
+          }
+        }
+      ]
+    },
+    "backend": {
+      "name": "Backend Agent",
+      "description": "Backend development and API specialist",
+      "personality": "Pragmatic, performance-focused, efficient",
+      "capabilities": ["api_design", "database_design", "performance_optimization"],
+      "tools": [
+        {
+          "name": "ua_backend_api_design",
+          "description": "Design REST API for a resource",
+          "parameters": {
+            "resource": {
+              "type": "string",
+              "description": "Resource name (e.g., User, Product)"
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["create", "read", "update", "delete", "list", "search"]
+              },
+              "description": "CRUD operations to support"
+            }
+          }
+        },
+        {
+          "name": "ua_backend_optimize",
+          "description": "Suggest code optimizations",
+          "parameters": {
+            "code": {
+              "type": "string",
+              "description": "Code snippet to optimize"
+            },
+            "metrics?": {
+              "type": "object",
+              "description": "Current performance metrics"
+            }
+          }
+        }
+      ]
+    },
+    "architect": {
+      "name": "System Architect",
+      "description": "System design and architecture expert",
+      "personality": "Strategic, holistic, pattern-oriented",
+      "capabilities": ["system_design", "pattern_selection", "dependency_analysis"],
+      "tools": [
+        {
+          "name": "ua_architect_design",
+          "description": "Design system architecture",
+          "parameters": {
+            "requirements": {
+              "type": "string",
+              "description": "System requirements"
+            },
+            "constraints?": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Technical or business constraints"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "capability_graph": {
+    "test_generation": {
+      "requires": ["code_understanding"],
+      "provides": ["quality_assurance"],
+      "complements": ["api_design", "system_design"]
+    },
+    "bug_analysis": {
+      "requires": ["code_understanding", "debugging_skills"],
+      "provides": ["bug_fixes", "root_cause_analysis"],
+      "complements": ["test_generation", "performance_optimization"]
+    },
+    "api_design": {
+      "requires": ["system_design"],
+      "provides": ["backend_implementation", "api_documentation"],
+      "complements": ["test_generation", "database_design"]
+    },
+    "database_design": {
+      "requires": ["data_modeling", "system_design"],
+      "provides": ["data_persistence", "query_optimization"],
+      "complements": ["api_design", "performance_optimization"]
+    },
+    "performance_optimization": {
+      "requires": ["code_analysis", "profiling"],
+      "provides": ["improved_performance", "scalability"],
+      "complements": ["api_design", "system_design"]
+    },
+    "system_design": {
+      "provides": ["architecture_blueprint", "api_design", "database_design"],
+      "complements": ["test_generation", "performance_optimization"]
+    },
+    "pattern_selection": {
+      "requires": ["system_design", "problem_analysis"],
+      "provides": ["design_patterns", "best_practices"],
+      "complements": ["api_design", "code_quality"]
+    }
+  }
+}
