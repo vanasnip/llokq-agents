@@ -353,6 +353,10 @@ class UnifiedAgentServer:
                         'inputs': {
                             'type': 'object',
                             'description': 'Input parameters for the workflow'
+                        },
+                        'require_approval': {
+                            'type': 'boolean',
+                            'description': 'Require approval before starting workflow'
                         }
                     },
                     'required': ['template', 'inputs']
@@ -432,6 +436,42 @@ class UnifiedAgentServer:
                         }
                     },
                     'required': ['name', 'description', 'steps']
+                }
+            },
+            {
+                'name': 'ua_workflow_cancel',
+                'description': 'Cancel a running workflow',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'workflow_id': {
+                            'type': 'string',
+                            'description': 'Workflow execution ID to cancel'
+                        },
+                        'reason': {
+                            'type': 'string',
+                            'description': 'Reason for cancellation'
+                        }
+                    },
+                    'required': ['workflow_id']
+                }
+            },
+            {
+                'name': 'ua_workflow_dry_run',
+                'description': 'Preview what a workflow would do without executing it',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'template': {
+                            'type': 'string',
+                            'description': 'Workflow template name'
+                        },
+                        'inputs': {
+                            'type': 'object',
+                            'description': 'Input parameters for the workflow'
+                        }
+                    },
+                    'required': ['template', 'inputs']
                 }
             }
         ]
@@ -1190,15 +1230,28 @@ Based on the description, this appears to be related to:
         try:
             if tool_name == 'ua_workflow_start':
                 # Start a new workflow
-                workflow_id = self.workflow_engine.start_workflow(
+                result = self.workflow_engine.start_workflow(
                     template_name=args['template'],
-                    inputs=args['inputs']
+                    inputs=args['inputs'],
+                    require_approval=args.get('require_approval', False),
+                    session_state=self.session
                 )
+                
+                # Handle approval required case
+                if isinstance(result, dict) and result.get('status') == 'pending_approval':
+                    return {
+                        'content': [{
+                            'type': 'text',
+                            'text': json.dumps(result, indent=2)
+                        }]
+                    }
+                
+                # Normal workflow start
                 return {
                     'content': [{
                         'type': 'text',
                         'text': json.dumps({
-                            'workflow_id': workflow_id,
+                            'workflow_id': result,
                             'status': 'started',
                             'template': args['template']
                         }, indent=2)
@@ -1270,6 +1323,32 @@ Based on the description, this appears to be related to:
                             'name': args['name'],
                             'steps': len(args['steps'])
                         }, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_cancel':
+                # Cancel workflow
+                result = self.workflow_engine.cancel_workflow(
+                    workflow_id=args['workflow_id'],
+                    reason=args.get('reason')
+                )
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(result, indent=2)
+                    }]
+                }
+                
+            elif tool_name == 'ua_workflow_dry_run':
+                # Dry run workflow
+                result = self.workflow_engine.dry_run_workflow(
+                    template_name=args['template'],
+                    inputs=args['inputs']
+                )
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(result, indent=2)
                     }]
                 }
                 
