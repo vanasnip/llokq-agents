@@ -55,7 +55,20 @@ def test_mcp_server():
             "params": {}
         })
         print(f"Available tools: {len(response['result']['tools'])}")
+        discovery_tools = []
+        agent_tools = []
         for tool in response['result']['tools']:
+            if tool['name'].startswith('ua_agent') or tool['name'].startswith('ua_capability'):
+                discovery_tools.append(tool)
+            else:
+                agent_tools.append(tool)
+        
+        print("\nDiscovery tools:")
+        for tool in discovery_tools:
+            print(f"  - {tool['name']}: {tool['description']}")
+        
+        print("\nAgent-specific tools:")
+        for tool in agent_tools:
             print(f"  - {tool['name']}: {tool['description']}")
         
         # Test 3: Call QA test generation tool
@@ -108,6 +121,135 @@ def test_mcp_server():
         })
         print("Architect response:")
         print(response['result']['content'][0]['text'][:500] + "...")
+        
+        # Test 6: Test discovery tools
+        print("\n6. Testing agent discovery tools...")
+        
+        # Test ua_agents_list
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_agents_list",
+                "arguments": {}
+            }
+        })
+        print("Agent list response (first 300 chars):")
+        print(response['result']['content'][0]['text'][:300] + "...")
+        
+        # Test ua_agent_info
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_agent_info",
+                "arguments": {
+                    "agent_id": "backend"
+                }
+            }
+        })
+        print("\nBackend agent info (first 400 chars):")
+        print(response['result']['content'][0]['text'][:400] + "...")
+        
+        # Test ua_capability_search
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_capability_search",
+                "arguments": {
+                    "query": "api"
+                }
+            }
+        })
+        print("\nSearch for 'api' capabilities:")
+        print(response['result']['content'][0]['text'])
+        
+        # Test ua_agent_compatible
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_agent_compatible",
+                "arguments": {
+                    "agent_id": "backend"
+                }
+            }
+        })
+        print("\nAgents compatible with backend:")
+        print(response['result']['content'][0]['text'])
+        
+        # Test 7: Test control tools
+        print("\n7. Testing user control tools...")
+        
+        # Test ua_suggest_agents
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_suggest_agents",
+                "arguments": {
+                    "task": "I need to build a REST API for user management with testing"
+                }
+            }
+        })
+        print("\nAgent suggestions for REST API task:")
+        suggestion_data = json.loads(response['result']['content'][0]['text'])
+        print(json.dumps(suggestion_data, indent=2))
+        suggestion_id = suggestion_data['suggestion_id']
+        
+        # Test ua_approve_agents
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_approve_agents",
+                "arguments": {
+                    "action": "approve",
+                    "agents": ["backend", "qa"],
+                    "suggestion_id": suggestion_id
+                }
+            }
+        })
+        print("\nApproval result:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
+        
+        # Test ua_set_preferences
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_set_preferences",
+                "arguments": {
+                    "auto_approve": True,
+                    "block_agents": ["architect"]
+                }
+            }
+        })
+        print("\nPreferences updated:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
+        
+        # Test new suggestion with auto-approval
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 13,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_suggest_agents",
+                "arguments": {
+                    "task": "Design a scalable system architecture"
+                }
+            }
+        })
+        print("\nNew suggestion with auto-approval enabled:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
         
         print("\n✅ All tests passed!")
         

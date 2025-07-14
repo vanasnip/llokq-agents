@@ -91,6 +91,29 @@ def validate_manifest(data: Dict[str, Any]) -> None:
                 raise ValueError(f"Tool name must start with 'ua_': {tool['name']}")
 
 
+class SessionState:
+    """Manages user preferences and agent approvals for a session"""
+    
+    def __init__(self):
+        self.approved_agents = set()
+        self.rejected_agents = set()
+        self.auto_approve = False
+        self.require_approval = set()  # Agents that always need approval
+        self.block_agents = set()  # Agents to never use
+        self.last_suggestion = None
+        self.suggestion_counter = 0
+    
+    def generate_suggestion_id(self) -> str:
+        """Generate unique suggestion ID"""
+        self.suggestion_counter += 1
+        return f"sug_{self.suggestion_counter}"
+    
+    def clear_old_suggestions(self):
+        """Clear old suggestion data (called periodically)"""
+        # In a real implementation, we'd track timestamps
+        pass
+
+
 class UnifiedAgentServer:
     """MCP server that exposes unified agents as tools"""
     
@@ -98,6 +121,7 @@ class UnifiedAgentServer:
         self.manifest_path = Path(manifest_path)
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
+        self.session = SessionState()  # Simple session management
         
     def _load_agents(self) -> Dict[str, Any]:
         """Load agent manifest from JSON"""
@@ -177,6 +201,135 @@ class UnifiedAgentServer:
         """List all available tools"""
         tools = []
         
+        # Add discovery tools
+        discovery_tools = [
+            {
+                'name': 'ua_agents_list',
+                'description': 'List all available agents with their descriptions and capabilities',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {},
+                    'required': []
+                }
+            },
+            {
+                'name': 'ua_agent_info',
+                'description': 'Get detailed information about a specific agent',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'agent_id': {
+                            'type': 'string',
+                            'description': 'The agent identifier (e.g., qa, backend, architect)'
+                        }
+                    },
+                    'required': ['agent_id']
+                }
+            },
+            {
+                'name': 'ua_capability_search',
+                'description': 'Search for agents by capability or domain',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'query': {
+                            'type': 'string',
+                            'description': 'Search query for capabilities or domains'
+                        }
+                    },
+                    'required': ['query']
+                }
+            },
+            {
+                'name': 'ua_agent_compatible',
+                'description': 'Find agents that work well with a given agent',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'agent_id': {
+                            'type': 'string',
+                            'description': 'The agent to find compatible partners for'
+                        }
+                    },
+                    'required': ['agent_id']
+                }
+            }
+        ]
+        
+        tools.extend(discovery_tools)
+        
+        # Add control tools
+        control_tools = [
+            {
+                'name': 'ua_suggest_agents',
+                'description': 'Analyze a task and suggest appropriate agents',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'task': {
+                            'type': 'string',
+                            'description': 'Description of the task to accomplish'
+                        },
+                        'context': {
+                            'type': 'string',
+                            'description': 'Additional context about the project'
+                        }
+                    },
+                    'required': ['task']
+                }
+            },
+            {
+                'name': 'ua_approve_agents',
+                'description': 'Approve or reject agent suggestions',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'action': {
+                            'type': 'string',
+                            'enum': ['approve', 'reject', 'approve_all', 'reset'],
+                            'description': 'Action to take on agents'
+                        },
+                        'agents': {
+                            'type': 'array',
+                            'items': {'type': 'string'},
+                            'description': 'Agent IDs to approve/reject'
+                        },
+                        'suggestion_id': {
+                            'type': 'string',
+                            'description': 'Reference to specific suggestion'
+                        }
+                    },
+                    'required': ['action']
+                }
+            },
+            {
+                'name': 'ua_set_preferences',
+                'description': 'Configure session-wide agent preferences',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'auto_approve': {
+                            'type': 'boolean',
+                            'description': 'Auto-approve all agent suggestions'
+                        },
+                        'require_approval': {
+                            'type': 'array',
+                            'items': {'type': 'string'},
+                            'description': 'Agents that always need approval'
+                        },
+                        'block_agents': {
+                            'type': 'array',
+                            'items': {'type': 'string'},
+                            'description': 'Agents to never use'
+                        }
+                    }
+                }
+            }
+        ]
+        
+        tools.extend(control_tools)
+        
+        # Add agent-specific tools
         for agent_id, agent in self.agents.items():
             for tool in agent.get('tools', []):
                 # Build parameter schema
@@ -227,7 +380,13 @@ class UnifiedAgentServer:
         
         # Route to appropriate handler
         try:
-            if tool_name.startswith('ua_qa_'):
+            if tool_name.startswith('ua_agents_') or tool_name.startswith('ua_agent_'):
+                result = self._handle_discovery_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_capability_'):
+                result = self._handle_discovery_tool(tool_name, arguments)
+            elif tool_name in ['ua_suggest_agents', 'ua_approve_agents', 'ua_set_preferences']:
+                result = self._handle_control_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_qa_'):
                 result = self._handle_qa_tool(tool_name, arguments)
             elif tool_name.startswith('ua_backend_'):
                 result = self._handle_backend_tool(tool_name, arguments)
@@ -301,6 +460,75 @@ class UnifiedAgentServer:
                 }
             else:
                 raise ValueError(f"Unknown Architect tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
+    
+    def _handle_discovery_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle agent discovery tools"""
+        try:
+            if tool_name == 'ua_agents_list':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._list_agents()
+                    }]
+                }
+            elif tool_name == 'ua_agent_info':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._get_agent_info(args['agent_id'])
+                    }]
+                }
+            elif tool_name == 'ua_capability_search':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._search_by_capability(args['query'])
+                    }]
+                }
+            elif tool_name == 'ua_agent_compatible':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._find_compatible_agents(args['agent_id'])
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown discovery tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
+    
+    def _handle_control_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle user control tools"""
+        try:
+            if tool_name == 'ua_suggest_agents':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(self._suggest_agents(args['task'], args.get('context', '')), indent=2)
+                    }]
+                }
+            elif tool_name == 'ua_approve_agents':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(self._approve_agents(
+                            args['action'],
+                            args.get('agents', []),
+                            args.get('suggestion_id')
+                        ), indent=2)
+                    }]
+                }
+            elif tool_name == 'ua_set_preferences':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': json.dumps(self._set_preferences(args), indent=2)
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown control tool: {tool_name}")
         except KeyError as e:
             raise ValueError(f"Missing required parameter: {e}")
     
@@ -533,6 +761,318 @@ Based on the description, this appears to be related to:
 """
         
         return design
+    
+    # Discovery tool implementations
+    def _list_agents(self) -> str:
+        """List all available agents"""
+        result = "# Available Agents\n\n"
+        
+        for agent_id, agent in self.agents.items():
+            result += f"## {agent['name']} (`{agent_id}`)\n"
+            result += f"{agent['description']}\n\n"
+            
+            if 'personality' in agent:
+                result += f"**Personality**: {agent['personality']}\n\n"
+            
+            if 'capabilities' in agent:
+                result += "**Capabilities**:\n"
+                for cap in agent['capabilities']:
+                    result += f"- {cap}\n"
+                result += "\n"
+            
+            result += "**Available Tools**:\n"
+            for tool in agent.get('tools', []):
+                result += f"- `{tool['name']}`: {tool['description']}\n"
+            result += "\n---\n\n"
+        
+        return result.strip()
+    
+    def _get_agent_info(self, agent_id: str) -> str:
+        """Get detailed information about a specific agent"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        agent = self.agents[agent_id]
+        result = f"# {agent['name']} Agent\n\n"
+        result += f"**ID**: `{agent_id}`\n"
+        result += f"**Description**: {agent['description']}\n\n"
+        
+        if 'personality' in agent:
+            result += f"**Personality**: {agent['personality']}\n\n"
+        
+        if 'capabilities' in agent:
+            result += "## Capabilities\n"
+            for cap in agent['capabilities']:
+                result += f"- {cap}\n"
+            result += "\n"
+        
+        # Show compatible agents from capability graph
+        if agent_id in self.capability_graph:
+            result += "## Relationships\n"
+            cap_info = self.capability_graph[agent_id]
+            
+            if 'requires' in cap_info:
+                result += "**Requires**:\n"
+                for req in cap_info['requires']:
+                    result += f"- {req}\n"
+                result += "\n"
+            
+            if 'provides' in cap_info:
+                result += "**Provides**:\n"
+                for prov in cap_info['provides']:
+                    result += f"- {prov}\n"
+                result += "\n"
+            
+            if 'complements' in cap_info:
+                result += "**Works Well With**:\n"
+                for comp in cap_info['complements']:
+                    result += f"- {comp}\n"
+                result += "\n"
+        
+        result += "## Available Tools\n"
+        for tool in agent.get('tools', []):
+            result += f"\n### `{tool['name']}`\n"
+            result += f"{tool['description']}\n\n"
+            
+            if 'parameters' in tool:
+                result += "**Parameters**:\n"
+                for param, details in tool['parameters'].items():
+                    required = "" if param.endswith("?") else " (required)"
+                    param_clean = param.rstrip("?")
+                    if isinstance(details, dict):
+                        param_type = details.get('type', 'any')
+                        desc = details.get('description', '')
+                        result += f"- `{param_clean}` ({param_type}){required}: {desc}\n"
+                    else:
+                        result += f"- `{param_clean}` ({details}){required}\n"
+                result += "\n"
+        
+        return result.strip()
+    
+    def _search_by_capability(self, query: str) -> str:
+        """Search agents by capability or domain"""
+        query_lower = query.lower()
+        matches = []
+        
+        # Search in agent capabilities
+        for agent_id, agent in self.agents.items():
+            score = 0
+            reasons = []
+            
+            # Check agent name and description
+            if query_lower in agent['name'].lower():
+                score += 3
+                reasons.append("name match")
+            if query_lower in agent['description'].lower():
+                score += 2
+                reasons.append("description match")
+            
+            # Check capabilities
+            for cap in agent.get('capabilities', []):
+                if query_lower in cap.lower():
+                    score += 2
+                    reasons.append(f"capability: {cap}")
+            
+            # Check tool names and descriptions
+            for tool in agent.get('tools', []):
+                if query_lower in tool['name'].lower():
+                    score += 1
+                    reasons.append(f"tool: {tool['name']}")
+                if query_lower in tool['description'].lower():
+                    score += 1
+                    reasons.append(f"tool description: {tool['name']}")
+            
+            if score > 0:
+                matches.append((score, agent_id, agent['name'], reasons))
+        
+        # Sort by score (highest first)
+        matches.sort(key=lambda x: x[0], reverse=True)
+        
+        if not matches:
+            return f"No agents found matching '{query}'"
+        
+        result = f"# Agents matching '{query}'\n\n"
+        for score, agent_id, name, reasons in matches:
+            result += f"## {name} (`{agent_id}`)\n"
+            result += f"**Match reasons**: {', '.join(reasons)}\n"
+            result += f"**Relevance score**: {score}\n\n"
+        
+        return result.strip()
+    
+    def _find_compatible_agents(self, agent_id: str) -> str:
+        """Find agents that work well with the given agent"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        agent = self.agents[agent_id]
+        result = f"# Agents Compatible with {agent['name']}\n\n"
+        
+        compatible = set()
+        
+        # Check capability graph for this agent's capabilities
+        for cap in agent.get('capabilities', []):
+            if cap in self.capability_graph:
+                cap_info = self.capability_graph[cap]
+                for comp in cap_info.get('complements', []):
+                    # Find agents that have this complementary capability
+                    for other_id, other_agent in self.agents.items():
+                        if other_id != agent_id:
+                            for other_cap in other_agent.get('capabilities', []):
+                                if comp == other_cap:
+                                    compatible.add((other_id, other_agent['name'], f"complementary capability: {comp}"))
+        
+        # Also check if other capabilities complement this agent's capabilities
+        for other_cap, cap_info in self.capability_graph.items():
+            for comp in cap_info.get('complements', []):
+                if comp in agent.get('capabilities', []):
+                    # Find agents with the other capability
+                    for other_id, other_agent in self.agents.items():
+                        if other_id != agent_id and other_cap in other_agent.get('capabilities', []):
+                            compatible.add((other_id, other_agent['name'], f"provides {other_cap} which complements {comp}"))
+        
+        if not compatible:
+            result += f"No specific compatibility information found for {agent['name']}.\n"
+            result += "However, all agents can work together for different aspects of development."
+        else:
+            for other_id, other_name, reason in sorted(compatible):
+                result += f"## {other_name} (`{other_id}`)\n"
+                result += f"**Compatibility**: {reason}\n\n"
+        
+        return result.strip()
+    
+    # Control tool implementations
+    def _suggest_agents(self, task: str, context: str) -> Dict[str, Any]:
+        """Analyze task and suggest appropriate agents"""
+        task_lower = task.lower()
+        suggestions = []
+        
+        # Keywords for each agent type
+        agent_keywords = {
+            'qa': ['test', 'quality', 'bug', 'coverage', 'validation', 'verify', 'check'],
+            'backend': ['api', 'database', 'server', 'endpoint', 'backend', 'rest', 'crud', 'data'],
+            'architect': ['design', 'architecture', 'system', 'structure', 'scale', 'pattern', 'build']
+        }
+        
+        # Score each agent based on task keywords
+        for agent_id, keywords in agent_keywords.items():
+            if agent_id not in self.agents:
+                continue
+                
+            score = 0
+            matched_keywords = []
+            
+            # Check each keyword
+            for keyword in keywords:
+                if keyword in task_lower:
+                    score += 1
+                    matched_keywords.append(keyword)
+            
+            # Check agent capabilities
+            agent = self.agents[agent_id]
+            for capability in agent.get('capabilities', []):
+                if any(word in capability.lower() for word in task_lower.split()):
+                    score += 0.5
+                    matched_keywords.append(f"capability:{capability}")
+            
+            # Calculate confidence (0-1 scale)
+            confidence = min(score / 3.0, 1.0)  # Normalize to max 1.0
+            
+            if confidence > 0.2:  # Only suggest if reasonably confident
+                reason = f"Matches: {', '.join(matched_keywords[:3])}"
+                if len(matched_keywords) > 3:
+                    reason += f" (+{len(matched_keywords)-3} more)"
+                
+                suggestions.append({
+                    'agent': agent_id,
+                    'confidence': round(confidence, 2),
+                    'reason': reason
+                })
+        
+        # Sort by confidence
+        suggestions.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        # Generate suggestion ID and store
+        suggestion_id = self.session.generate_suggestion_id()
+        self.session.last_suggestion = {
+            'id': suggestion_id,
+            'task': task,
+            'suggestions': suggestions
+        }
+        
+        return {
+            'suggestion_id': suggestion_id,
+            'task': task,
+            'suggestions': suggestions,
+            'auto_approved': self.session.auto_approve
+        }
+    
+    def _approve_agents(self, action: str, agents: List[str], suggestion_id: Optional[str]) -> Dict[str, Any]:
+        """Handle agent approval/rejection"""
+        if action == 'approve':
+            # Validate agents exist
+            for agent_id in agents:
+                if agent_id not in self.agents:
+                    raise ValueError(f"Unknown agent: {agent_id}")
+                if agent_id not in self.session.block_agents:
+                    self.session.approved_agents.add(agent_id)
+                    self.session.rejected_agents.discard(agent_id)
+                    
+        elif action == 'reject':
+            for agent_id in agents:
+                self.session.rejected_agents.add(agent_id)
+                self.session.approved_agents.discard(agent_id)
+                
+        elif action == 'approve_all':
+            # Approve all from last suggestion
+            if self.session.last_suggestion and self.session.last_suggestion.get('suggestions'):
+                for suggestion in self.session.last_suggestion['suggestions']:
+                    agent_id = suggestion['agent']
+                    if agent_id not in self.session.block_agents:
+                        self.session.approved_agents.add(agent_id)
+                        self.session.rejected_agents.discard(agent_id)
+                        
+        elif action == 'reset':
+            # Clear all approvals
+            self.session.approved_agents.clear()
+            self.session.rejected_agents.clear()
+        
+        else:
+            raise ValueError(f"Invalid action: {action}")
+        
+        return {
+            'approved': sorted(list(self.session.approved_agents)),
+            'rejected': sorted(list(self.session.rejected_agents)),
+            'session_status': {
+                'auto_approve': self.session.auto_approve,
+                'total_approved': len(self.session.approved_agents),
+                'total_rejected': len(self.session.rejected_agents)
+            }
+        }
+    
+    def _set_preferences(self, preferences: Dict[str, Any]) -> Dict[str, Any]:
+        """Update session preferences"""
+        if 'auto_approve' in preferences:
+            self.session.auto_approve = preferences['auto_approve']
+            
+        if 'require_approval' in preferences:
+            self.session.require_approval = set(preferences['require_approval'])
+            
+        if 'block_agents' in preferences:
+            self.session.block_agents = set(preferences['block_agents'])
+            # Remove blocked agents from approved list
+            self.session.approved_agents -= self.session.block_agents
+        
+        return {
+            'preferences': {
+                'auto_approve': self.session.auto_approve,
+                'require_approval': sorted(list(self.session.require_approval)),
+                'block_agents': sorted(list(self.session.block_agents))
+            },
+            'session_status': {
+                'approved_agents': sorted(list(self.session.approved_agents)),
+                'total_approved': len(self.session.approved_agents)
+            }
+        }
     
     def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
         """Generate error response with proper JSON-RPC error codes
