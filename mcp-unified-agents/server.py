@@ -177,6 +177,64 @@ class UnifiedAgentServer:
         """List all available tools"""
         tools = []
         
+        # Add discovery tools
+        discovery_tools = [
+            {
+                'name': 'ua_agents_list',
+                'description': 'List all available agents with their descriptions and capabilities',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {},
+                    'required': []
+                }
+            },
+            {
+                'name': 'ua_agent_info',
+                'description': 'Get detailed information about a specific agent',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'agent_id': {
+                            'type': 'string',
+                            'description': 'The agent identifier (e.g., qa, backend, architect)'
+                        }
+                    },
+                    'required': ['agent_id']
+                }
+            },
+            {
+                'name': 'ua_capability_search',
+                'description': 'Search for agents by capability or domain',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'query': {
+                            'type': 'string',
+                            'description': 'Search query for capabilities or domains'
+                        }
+                    },
+                    'required': ['query']
+                }
+            },
+            {
+                'name': 'ua_agent_compatible',
+                'description': 'Find agents that work well with a given agent',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'agent_id': {
+                            'type': 'string',
+                            'description': 'The agent to find compatible partners for'
+                        }
+                    },
+                    'required': ['agent_id']
+                }
+            }
+        ]
+        
+        tools.extend(discovery_tools)
+        
+        # Add agent-specific tools
         for agent_id, agent in self.agents.items():
             for tool in agent.get('tools', []):
                 # Build parameter schema
@@ -227,7 +285,11 @@ class UnifiedAgentServer:
         
         # Route to appropriate handler
         try:
-            if tool_name.startswith('ua_qa_'):
+            if tool_name.startswith('ua_agents_') or tool_name.startswith('ua_agent_'):
+                result = self._handle_discovery_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_capability_'):
+                result = self._handle_discovery_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_qa_'):
                 result = self._handle_qa_tool(tool_name, arguments)
             elif tool_name.startswith('ua_backend_'):
                 result = self._handle_backend_tool(tool_name, arguments)
@@ -301,6 +363,42 @@ class UnifiedAgentServer:
                 }
             else:
                 raise ValueError(f"Unknown Architect tool: {tool_name}")
+        except KeyError as e:
+            raise ValueError(f"Missing required parameter: {e}")
+    
+    def _handle_discovery_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle agent discovery tools"""
+        try:
+            if tool_name == 'ua_agents_list':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._list_agents()
+                    }]
+                }
+            elif tool_name == 'ua_agent_info':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._get_agent_info(args['agent_id'])
+                    }]
+                }
+            elif tool_name == 'ua_capability_search':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._search_by_capability(args['query'])
+                    }]
+                }
+            elif tool_name == 'ua_agent_compatible':
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': self._find_compatible_agents(args['agent_id'])
+                    }]
+                }
+            else:
+                raise ValueError(f"Unknown discovery tool: {tool_name}")
         except KeyError as e:
             raise ValueError(f"Missing required parameter: {e}")
     
@@ -533,6 +631,184 @@ Based on the description, this appears to be related to:
 """
         
         return design
+    
+    # Discovery tool implementations
+    def _list_agents(self) -> str:
+        """List all available agents"""
+        result = "# Available Agents\n\n"
+        
+        for agent_id, agent in self.agents.items():
+            result += f"## {agent['name']} (`{agent_id}`)\n"
+            result += f"{agent['description']}\n\n"
+            
+            if 'personality' in agent:
+                result += f"**Personality**: {agent['personality']}\n\n"
+            
+            if 'capabilities' in agent:
+                result += "**Capabilities**:\n"
+                for cap in agent['capabilities']:
+                    result += f"- {cap}\n"
+                result += "\n"
+            
+            result += "**Available Tools**:\n"
+            for tool in agent.get('tools', []):
+                result += f"- `{tool['name']}`: {tool['description']}\n"
+            result += "\n---\n\n"
+        
+        return result.strip()
+    
+    def _get_agent_info(self, agent_id: str) -> str:
+        """Get detailed information about a specific agent"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        agent = self.agents[agent_id]
+        result = f"# {agent['name']} Agent\n\n"
+        result += f"**ID**: `{agent_id}`\n"
+        result += f"**Description**: {agent['description']}\n\n"
+        
+        if 'personality' in agent:
+            result += f"**Personality**: {agent['personality']}\n\n"
+        
+        if 'capabilities' in agent:
+            result += "## Capabilities\n"
+            for cap in agent['capabilities']:
+                result += f"- {cap}\n"
+            result += "\n"
+        
+        # Show compatible agents from capability graph
+        if agent_id in self.capability_graph:
+            result += "## Relationships\n"
+            cap_info = self.capability_graph[agent_id]
+            
+            if 'requires' in cap_info:
+                result += "**Requires**:\n"
+                for req in cap_info['requires']:
+                    result += f"- {req}\n"
+                result += "\n"
+            
+            if 'provides' in cap_info:
+                result += "**Provides**:\n"
+                for prov in cap_info['provides']:
+                    result += f"- {prov}\n"
+                result += "\n"
+            
+            if 'complements' in cap_info:
+                result += "**Works Well With**:\n"
+                for comp in cap_info['complements']:
+                    result += f"- {comp}\n"
+                result += "\n"
+        
+        result += "## Available Tools\n"
+        for tool in agent.get('tools', []):
+            result += f"\n### `{tool['name']}`\n"
+            result += f"{tool['description']}\n\n"
+            
+            if 'parameters' in tool:
+                result += "**Parameters**:\n"
+                for param, details in tool['parameters'].items():
+                    required = "" if param.endswith("?") else " (required)"
+                    param_clean = param.rstrip("?")
+                    if isinstance(details, dict):
+                        param_type = details.get('type', 'any')
+                        desc = details.get('description', '')
+                        result += f"- `{param_clean}` ({param_type}){required}: {desc}\n"
+                    else:
+                        result += f"- `{param_clean}` ({details}){required}\n"
+                result += "\n"
+        
+        return result.strip()
+    
+    def _search_by_capability(self, query: str) -> str:
+        """Search agents by capability or domain"""
+        query_lower = query.lower()
+        matches = []
+        
+        # Search in agent capabilities
+        for agent_id, agent in self.agents.items():
+            score = 0
+            reasons = []
+            
+            # Check agent name and description
+            if query_lower in agent['name'].lower():
+                score += 3
+                reasons.append("name match")
+            if query_lower in agent['description'].lower():
+                score += 2
+                reasons.append("description match")
+            
+            # Check capabilities
+            for cap in agent.get('capabilities', []):
+                if query_lower in cap.lower():
+                    score += 2
+                    reasons.append(f"capability: {cap}")
+            
+            # Check tool names and descriptions
+            for tool in agent.get('tools', []):
+                if query_lower in tool['name'].lower():
+                    score += 1
+                    reasons.append(f"tool: {tool['name']}")
+                if query_lower in tool['description'].lower():
+                    score += 1
+                    reasons.append(f"tool description: {tool['name']}")
+            
+            if score > 0:
+                matches.append((score, agent_id, agent['name'], reasons))
+        
+        # Sort by score (highest first)
+        matches.sort(key=lambda x: x[0], reverse=True)
+        
+        if not matches:
+            return f"No agents found matching '{query}'"
+        
+        result = f"# Agents matching '{query}'\n\n"
+        for score, agent_id, name, reasons in matches:
+            result += f"## {name} (`{agent_id}`)\n"
+            result += f"**Match reasons**: {', '.join(reasons)}\n"
+            result += f"**Relevance score**: {score}\n\n"
+        
+        return result.strip()
+    
+    def _find_compatible_agents(self, agent_id: str) -> str:
+        """Find agents that work well with the given agent"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        agent = self.agents[agent_id]
+        result = f"# Agents Compatible with {agent['name']}\n\n"
+        
+        compatible = set()
+        
+        # Check capability graph for this agent's capabilities
+        for cap in agent.get('capabilities', []):
+            if cap in self.capability_graph:
+                cap_info = self.capability_graph[cap]
+                for comp in cap_info.get('complements', []):
+                    # Find agents that have this complementary capability
+                    for other_id, other_agent in self.agents.items():
+                        if other_id != agent_id:
+                            for other_cap in other_agent.get('capabilities', []):
+                                if comp == other_cap:
+                                    compatible.add((other_id, other_agent['name'], f"complementary capability: {comp}"))
+        
+        # Also check if other capabilities complement this agent's capabilities
+        for other_cap, cap_info in self.capability_graph.items():
+            for comp in cap_info.get('complements', []):
+                if comp in agent.get('capabilities', []):
+                    # Find agents with the other capability
+                    for other_id, other_agent in self.agents.items():
+                        if other_id != agent_id and other_cap in other_agent.get('capabilities', []):
+                            compatible.add((other_id, other_agent['name'], f"provides {other_cap} which complements {comp}"))
+        
+        if not compatible:
+            result += f"No specific compatibility information found for {agent['name']}.\n"
+            result += "However, all agents can work together for different aspects of development."
+        else:
+            for other_id, other_name, reason in sorted(compatible):
+                result += f"## {other_name} (`{other_id}`)\n"
+                result += f"**Compatibility**: {reason}\n\n"
+        
+        return result.strip()
     
     def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
         """Generate error response with proper JSON-RPC error codes
