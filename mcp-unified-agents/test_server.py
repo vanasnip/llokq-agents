@@ -183,6 +183,74 @@ def test_mcp_server():
         print("\nAgents compatible with backend:")
         print(response['result']['content'][0]['text'])
         
+        # Test 7: Test control tools
+        print("\n7. Testing user control tools...")
+        
+        # Test ua_suggest_agents
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_suggest_agents",
+                "arguments": {
+                    "task": "I need to build a REST API for user management with testing"
+                }
+            }
+        })
+        print("\nAgent suggestions for REST API task:")
+        suggestion_data = json.loads(response['result']['content'][0]['text'])
+        print(json.dumps(suggestion_data, indent=2))
+        suggestion_id = suggestion_data['suggestion_id']
+        
+        # Test ua_approve_agents
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_approve_agents",
+                "arguments": {
+                    "action": "approve",
+                    "agents": ["backend", "qa"],
+                    "suggestion_id": suggestion_id
+                }
+            }
+        })
+        print("\nApproval result:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
+        
+        # Test ua_set_preferences
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_set_preferences",
+                "arguments": {
+                    "auto_approve": True,
+                    "block_agents": ["architect"]
+                }
+            }
+        })
+        print("\nPreferences updated:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
+        
+        # Test new suggestion with auto-approval
+        response = send_request(proc, {
+            "jsonrpc": "2.0",
+            "id": 13,
+            "method": "tools/call",
+            "params": {
+                "name": "ua_suggest_agents",
+                "arguments": {
+                    "task": "Design a scalable system architecture"
+                }
+            }
+        })
+        print("\nNew suggestion with auto-approval enabled:")
+        print(json.dumps(json.loads(response['result']['content'][0]['text']), indent=2))
+        
         print("\n✅ All tests passed!")
         
     except Exception as e:
