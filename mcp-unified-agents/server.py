@@ -12,30 +12,59 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 import traceback
 import os
+import re
+from datetime import datetime
+from contextlib import contextmanager
 
-# STARTUP DEBUGGING
-debug_log_path = '/tmp/mcp-unified-agents-startup.log'
-try:
-    with open(debug_log_path, 'a') as f:
-        f.write(f"\n{'='*60}\n")
-        f.write(f"MCP Server startup at {__import__('datetime').datetime.now()}\n")
-        f.write(f"Python: {sys.executable}\n")
-        f.write(f"Script: {__file__}\n")
-        f.write(f"CWD: {os.getcwd()}\n")
-        f.write(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}\n")
-        f.write(f"sys.path: {sys.path[:3]}...\n")
-except Exception as e:
-    pass  # Fail silently if can't write debug log
+# Configuration constants
+DEBUG_MODE = os.environ.get('MCP_DEBUG', '').lower() in ('true', '1', 'yes')
+DEBUG_LOG_PATH = os.environ.get('MCP_DEBUG_LOG', '/tmp/mcp-unified-agents-startup.log')
+DEFAULT_PROTOCOL_VERSION = '2025-06-18'
+PROTOCOL_VERSION_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# Debug logging context manager
+@contextmanager
+def debug_log(message: str):
+    """Context manager for debug logging with proper resource management"""
+    if not DEBUG_MODE:
+        yield
+        return
+    
+    try:
+        with open(DEBUG_LOG_PATH, 'a') as f:
+            f.write(f"[{datetime.now().isoformat()}] {message}\n")
+        yield
+    except Exception:
+        # Fail silently in debug logging
+        yield
+
+# Startup debugging
+if DEBUG_MODE:
+    with debug_log(f"\n{'='*60}"):
+        pass
+    with debug_log(f"MCP Server startup"):
+        pass
+    with debug_log(f"Python: {sys.executable}"):
+        pass
+    with debug_log(f"Script: {__file__}"):
+        pass
+    with debug_log(f"CWD: {os.getcwd()}"):
+        pass
+    with debug_log(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}"):
+        pass
+    with debug_log(f"sys.path: {sys.path[:3]}..."):
+        pass
 
 try:
     # Import workflow components
     from workflow import WorkflowEngine, ContextManager
-    with open(debug_log_path, 'a') as f:
-        f.write("✅ Workflow imports successful\n")
+    if DEBUG_MODE:
+        with debug_log("✅ Workflow imports successful"):
+            pass
 except Exception as e:
-    with open(debug_log_path, 'a') as f:
-        f.write(f"❌ Workflow import failed: {e}\n")
-        f.write(traceback.format_exc())
+    if DEBUG_MODE:
+        with debug_log(f"❌ Workflow import failed: {e}\n{traceback.format_exc()}"):
+            pass
     raise
 
 # Configure logging
@@ -152,9 +181,10 @@ class UnifiedAgentServer:
             self.manifest_path = Path(manifest_path)
         
         # Debug logging
-        with open(debug_log_path, 'a') as f:
-            f.write(f"Resolved manifest path: {self.manifest_path}\n")
-            f.write(f"Manifest exists: {self.manifest_path.exists()}\n")
+        with debug_log(f"Resolved manifest path: {self.manifest_path}"):
+            pass
+        with debug_log(f"Manifest exists: {self.manifest_path.exists()}"):
+            pass
         
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
@@ -208,7 +238,7 @@ class UnifiedAgentServer:
         try:
             if method == 'initialize':
                 # Extract the protocol version from the request
-                client_protocol = request.get('params', {}).get('protocolVersion', '2025-06-18')
+                client_protocol = request.get('params', {}).get('protocolVersion', DEFAULT_PROTOCOL_VERSION)
                 return self._handle_initialize(request_id, client_protocol)
             elif method == 'tools/list':
                 return self._handle_list_tools(request_id)
@@ -226,7 +256,12 @@ class UnifiedAgentServer:
             return self._error_response(request_id, str(e), -32603)
     
     def _handle_initialize(self, request_id: Any, client_protocol: str) -> Dict[str, Any]:
-        """Handle initialization request"""
+        """Handle initialization request with protocol version validation"""
+        # Validate protocol version format
+        if not self._validate_protocol_version(client_protocol):
+            logger.warning(f"Invalid protocol version format: {client_protocol}, using default")
+            client_protocol = DEFAULT_PROTOCOL_VERSION
+        
         return {
             'jsonrpc': '2.0',
             'id': request_id,
@@ -242,6 +277,12 @@ class UnifiedAgentServer:
                 }
             }
         }
+    
+    def _validate_protocol_version(self, version: str) -> bool:
+        """Validate protocol version format (YYYY-MM-DD)"""
+        if not isinstance(version, str):
+            return False
+        return bool(PROTOCOL_VERSION_PATTERN.match(version))
     
     def _handle_list_tools(self, request_id: Any) -> Dict[str, Any]:
         """List all available tools"""
@@ -1420,35 +1461,35 @@ Based on the description, this appears to be related to:
         """Run the MCP server using stdio transport"""
         logger.info("Starting Unified Agents MCP Server...")
         
-        with open(debug_log_path, 'a') as f:
-            f.write("Server entering main loop, waiting for stdin...\n")
+        with debug_log("Server entering main loop, waiting for stdin..."):
+            pass
         
         # Process requests from stdin
         try:
             for line in sys.stdin:
                 try:
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Received line: {line[:100]}...\n")
+                    with debug_log(f"Received line: {line[:100]}..."):
+                        pass
                     
                     # Parse JSON-RPC request
                     request = json.loads(line.strip())
                     logger.debug(f"Received request: {request}")
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Parsed request: {request.get('method')} (id: {request.get('id')})\n")
+                    with debug_log(f"Parsed request: {request.get('method')} (id: {request.get('id')})"):
+                        pass
                     
                     # Handle the request
                     response = self.handle_request(request)
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Response ready: {json.dumps(response)[:100]}...\n")
+                    with debug_log(f"Response ready: {json.dumps(response)[:100]}..."):
+                        pass
                     
                     # Send response to stdout
                     print(json.dumps(response))
                     sys.stdout.flush()
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write("Response sent successfully\n")
+                    with debug_log("Response sent successfully"):
+                        pass
                     
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON: {e}")
@@ -1457,48 +1498,47 @@ Based on the description, this appears to be related to:
                     sys.stdout.flush()
                 except Exception as e:
                     logger.error(f"Unexpected error: {e}")
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"❌ Error processing request: {e}\n")
-                        f.write(traceback.format_exc())
+                    with debug_log(f"❌ Error processing request: {e}\n{traceback.format_exc()}"):
+                        pass
                     error_response = self._error_response(None, "Internal error")
                     print(json.dumps(error_response))
                     sys.stdout.flush()
         
         except (EOFError, KeyboardInterrupt):
-            with open(debug_log_path, 'a') as f:
-                f.write("Server shutting down (stdin closed or interrupted)\n")
+            with debug_log("Server shutting down (stdin closed or interrupted)"):
+                pass
         except Exception as e:
-            with open(debug_log_path, 'a') as f:
-                f.write(f"❌ Server crashed: {e}\n")
-                f.write(traceback.format_exc())
+            with debug_log(f"❌ Server crashed: {e}\n{traceback.format_exc()}"):
+                pass
             raise
 
 
 if __name__ == "__main__":
     try:
-        with open(debug_log_path, 'a') as f:
-            f.write("Starting server initialization...\n")
+        with debug_log("Starting server initialization..."):
+            pass
         server = UnifiedAgentServer()
-        with open(debug_log_path, 'a') as f:
-            f.write("✅ Server initialized successfully\n")
-            f.write("Starting server.run()...\n")
+        with debug_log("✅ Server initialized successfully"):
+            pass
+        with debug_log("Starting server.run()..."):
+            pass
         
         # Heartbeat disabled after successful debugging
-        # Uncomment below to re-enable heartbeat logging
-        # import threading
-        # def heartbeat():
-        #     while True:
-        #         with open(debug_log_path, 'a') as f:
-        #             f.write(f"💓 Heartbeat: Server alive at {__import__('datetime').datetime.now()}\n")
-        #         threading.Event().wait(10)  # Wait 10 seconds
-        # 
-        # heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
-        # heartbeat_thread.start()
+        # To enable heartbeat logging, set MCP_HEARTBEAT=true
+        if os.environ.get('MCP_HEARTBEAT', '').lower() in ('true', '1', 'yes'):
+            import threading
+            def heartbeat():
+                while True:
+                    with debug_log(f"💓 Heartbeat: Server alive at {datetime.now()}"):
+                        pass
+                    threading.Event().wait(10)  # Wait 10 seconds
+            
+            heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+            heartbeat_thread.start()
         
         server.run()
     except Exception as e:
-        with open(debug_log_path, 'a') as f:
-            f.write(f"❌ Server startup failed: {e}\n")
-            f.write(traceback.format_exc())
+        with debug_log(f"❌ Server startup failed: {e}\n{traceback.format_exc()}"):
+            pass
         # Re-raise to ensure proper exit code
         raise
