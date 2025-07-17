@@ -10,9 +10,33 @@ import sys
 import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+import traceback
+import os
 
-# Import workflow components
-from workflow import WorkflowEngine, ContextManager
+# STARTUP DEBUGGING
+debug_log_path = '/tmp/mcp-unified-agents-startup.log'
+try:
+    with open(debug_log_path, 'a') as f:
+        f.write(f"\n{'='*60}\n")
+        f.write(f"MCP Server startup at {__import__('datetime').datetime.now()}\n")
+        f.write(f"Python: {sys.executable}\n")
+        f.write(f"Script: {__file__}\n")
+        f.write(f"CWD: {os.getcwd()}\n")
+        f.write(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}\n")
+        f.write(f"sys.path: {sys.path[:3]}...\n")
+except Exception as e:
+    pass  # Fail silently if can't write debug log
+
+try:
+    # Import workflow components
+    from workflow import WorkflowEngine, ContextManager
+    with open(debug_log_path, 'a') as f:
+        f.write("✅ Workflow imports successful\n")
+except Exception as e:
+    with open(debug_log_path, 'a') as f:
+        f.write(f"❌ Workflow import failed: {e}\n")
+        f.write(traceback.format_exc())
+    raise
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -120,7 +144,18 @@ class UnifiedAgentServer:
     """MCP server that exposes unified agents as tools with workflow orchestration"""
     
     def __init__(self, manifest_path: str = "agents.json"):
-        self.manifest_path = Path(manifest_path)
+        # Make path absolute relative to script location
+        if not os.path.isabs(manifest_path):
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            self.manifest_path = Path(script_dir) / manifest_path
+        else:
+            self.manifest_path = Path(manifest_path)
+        
+        # Debug logging
+        with open(debug_log_path, 'a') as f:
+            f.write(f"Resolved manifest path: {self.manifest_path}\n")
+            f.write(f"Manifest exists: {self.manifest_path.exists()}\n")
+        
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
         self.session = SessionState()  # Simple session management
@@ -172,7 +207,9 @@ class UnifiedAgentServer:
         
         try:
             if method == 'initialize':
-                return self._handle_initialize(request_id)
+                # Extract the protocol version from the request
+                client_protocol = request.get('params', {}).get('protocolVersion', '2025-06-18')
+                return self._handle_initialize(request_id, client_protocol)
             elif method == 'tools/list':
                 return self._handle_list_tools(request_id)
             elif method == 'tools/call':
@@ -188,13 +225,13 @@ class UnifiedAgentServer:
             logger.error(f"Error handling request: {e}")
             return self._error_response(request_id, str(e), -32603)
     
-    def _handle_initialize(self, request_id: Any) -> Dict[str, Any]:
+    def _handle_initialize(self, request_id: Any, client_protocol: str) -> Dict[str, Any]:
         """Handle initialization request"""
         return {
             'jsonrpc': '2.0',
             'id': request_id,
             'result': {
-                'protocolVersion': '0.1.0',
+                'protocolVersion': client_protocol,
                 'capabilities': {
                     'tools': {},
                     'prompts': {}
@@ -1383,32 +1420,85 @@ Based on the description, this appears to be related to:
         """Run the MCP server using stdio transport"""
         logger.info("Starting Unified Agents MCP Server...")
         
+        with open(debug_log_path, 'a') as f:
+            f.write("Server entering main loop, waiting for stdin...\n")
+        
         # Process requests from stdin
-        for line in sys.stdin:
-            try:
-                # Parse JSON-RPC request
-                request = json.loads(line.strip())
-                logger.debug(f"Received request: {request}")
-                
-                # Handle the request
-                response = self.handle_request(request)
-                
-                # Send response to stdout
-                print(json.dumps(response))
-                sys.stdout.flush()
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON: {e}")
-                error_response = self._error_response(None, "Parse error", -32700)
-                print(json.dumps(error_response))
-                sys.stdout.flush()
-            except Exception as e:
-                logger.error(f"Unexpected error: {e}")
-                error_response = self._error_response(None, "Internal error")
-                print(json.dumps(error_response))
-                sys.stdout.flush()
+        try:
+            for line in sys.stdin:
+                try:
+                    with open(debug_log_path, 'a') as f:
+                        f.write(f"Received line: {line[:100]}...\n")
+                    
+                    # Parse JSON-RPC request
+                    request = json.loads(line.strip())
+                    logger.debug(f"Received request: {request}")
+                    
+                    with open(debug_log_path, 'a') as f:
+                        f.write(f"Parsed request: {request.get('method')} (id: {request.get('id')})\n")
+                    
+                    # Handle the request
+                    response = self.handle_request(request)
+                    
+                    with open(debug_log_path, 'a') as f:
+                        f.write(f"Response ready: {json.dumps(response)[:100]}...\n")
+                    
+                    # Send response to stdout
+                    print(json.dumps(response))
+                    sys.stdout.flush()
+                    
+                    with open(debug_log_path, 'a') as f:
+                        f.write("Response sent successfully\n")
+                    
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON: {e}")
+                    error_response = self._error_response(None, "Parse error", -32700)
+                    print(json.dumps(error_response))
+                    sys.stdout.flush()
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}")
+                    with open(debug_log_path, 'a') as f:
+                        f.write(f"❌ Error processing request: {e}\n")
+                        f.write(traceback.format_exc())
+                    error_response = self._error_response(None, "Internal error")
+                    print(json.dumps(error_response))
+                    sys.stdout.flush()
+        
+        except (EOFError, KeyboardInterrupt):
+            with open(debug_log_path, 'a') as f:
+                f.write("Server shutting down (stdin closed or interrupted)\n")
+        except Exception as e:
+            with open(debug_log_path, 'a') as f:
+                f.write(f"❌ Server crashed: {e}\n")
+                f.write(traceback.format_exc())
+            raise
 
 
 if __name__ == "__main__":
-    server = UnifiedAgentServer()
-    server.run()
+    try:
+        with open(debug_log_path, 'a') as f:
+            f.write("Starting server initialization...\n")
+        server = UnifiedAgentServer()
+        with open(debug_log_path, 'a') as f:
+            f.write("✅ Server initialized successfully\n")
+            f.write("Starting server.run()...\n")
+        
+        # Heartbeat disabled after successful debugging
+        # Uncomment below to re-enable heartbeat logging
+        # import threading
+        # def heartbeat():
+        #     while True:
+        #         with open(debug_log_path, 'a') as f:
+        #             f.write(f"💓 Heartbeat: Server alive at {__import__('datetime').datetime.now()}\n")
+        #         threading.Event().wait(10)  # Wait 10 seconds
+        # 
+        # heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+        # heartbeat_thread.start()
+        
+        server.run()
+    except Exception as e:
+        with open(debug_log_path, 'a') as f:
+            f.write(f"❌ Server startup failed: {e}\n")
+            f.write(traceback.format_exc())
+        # Re-raise to ensure proper exit code
+        raise
