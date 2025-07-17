@@ -12,31 +12,73 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 import traceback
 import os
+import re
+from datetime import datetime
+from contextlib import contextmanager
 
-# STARTUP DEBUGGING
-debug_log_path = '/tmp/mcp-unified-agents-startup.log'
-try:
-    with open(debug_log_path, 'a') as f:
-        f.write(f"\n{'='*60}\n")
-        f.write(f"MCP Server startup at {__import__('datetime').datetime.now()}\n")
-        f.write(f"Python: {sys.executable}\n")
-        f.write(f"Script: {__file__}\n")
-        f.write(f"CWD: {os.getcwd()}\n")
-        f.write(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}\n")
-        f.write(f"sys.path: {sys.path[:3]}...\n")
-except Exception as e:
-    pass  # Fail silently if can't write debug log
+# Configuration constants
+DEBUG_MODE = os.environ.get('MCP_DEBUG', '').lower() in ('true', '1', 'yes')
+DEBUG_LOG_PATH = os.environ.get('MCP_DEBUG_LOG', '/tmp/mcp-unified-agents-startup.log')
+DEFAULT_PROTOCOL_VERSION = '2025-06-18'
+PROTOCOL_VERSION_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# Debug logging context manager
+@contextmanager
+def debug_log(message: str):
+    """Context manager for debug logging with proper resource management"""
+    if not DEBUG_MODE:
+        yield
+        return
+    
+    try:
+        with open(DEBUG_LOG_PATH, 'a') as f:
+            f.write(f"[{datetime.now().isoformat()}] {message}\n")
+        yield
+    except Exception:
+        # Fail silently in debug logging
+        yield
+
+# Startup debugging
+if DEBUG_MODE:
+    with debug_log(f"\n{'='*60}"):
+        pass
+    with debug_log(f"MCP Server startup"):
+        pass
+    with debug_log(f"Python: {sys.executable}"):
+        pass
+    with debug_log(f"Script: {__file__}"):
+        pass
+    with debug_log(f"CWD: {os.getcwd()}"):
+        pass
+    with debug_log(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}"):
+        pass
+    with debug_log(f"sys.path: {sys.path[:3]}..."):
+        pass
 
 try:
     # Import workflow components
     from workflow import WorkflowEngine, ContextManager
-    with open(debug_log_path, 'a') as f:
-        f.write("✅ Workflow imports successful\n")
+    if DEBUG_MODE:
+        with debug_log("✅ Workflow imports successful"):
+            pass
 except Exception as e:
-    with open(debug_log_path, 'a') as f:
-        f.write(f"❌ Workflow import failed: {e}\n")
-        f.write(traceback.format_exc())
+    if DEBUG_MODE:
+        with debug_log(f"❌ Workflow import failed: {e}\n{traceback.format_exc()}"):
+            pass
     raise
+
+try:
+    # Import deployment components
+    from deployment import DeploymentManager
+    if DEBUG_MODE:
+        with debug_log("✅ Deployment imports successful"):
+            pass
+except Exception as e:
+    if DEBUG_MODE:
+        with debug_log(f"❌ Deployment import failed: {e}\n{traceback.format_exc()}"):
+            pass
+    # Deployment is optional, don't raise
+    pass
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -152,9 +194,10 @@ class UnifiedAgentServer:
             self.manifest_path = Path(manifest_path)
         
         # Debug logging
-        with open(debug_log_path, 'a') as f:
-            f.write(f"Resolved manifest path: {self.manifest_path}\n")
-            f.write(f"Manifest exists: {self.manifest_path.exists()}\n")
+        with debug_log(f"Resolved manifest path: {self.manifest_path}"):
+            pass
+        with debug_log(f"Manifest exists: {self.manifest_path.exists()}"):
+            pass
         
         self.agents = self._load_agents()
         self.capability_graph = self._load_capability_graph()
@@ -166,6 +209,16 @@ class UnifiedAgentServer:
             agent_registry=self.agents,
             context_manager=self.context_manager
         )
+        
+        # Initialize deployment manager if available
+        try:
+            import os
+            dev_path = os.environ.get('MCP_DEV_PATH', str(Path(__file__).parent.parent))
+            prod_path = os.environ.get('MCP_PROD_PATH', os.path.expanduser("~/mcp-config/servers/mcp-unified-agents"))
+            self.deployment_mgr = DeploymentManager(dev_path, prod_path)
+        except Exception as e:
+            logger.warning(f"Deployment manager not available: {e}")
+            self.deployment_mgr = None
         
     def _load_agents(self) -> Dict[str, Any]:
         """Load agent manifest from JSON"""
@@ -208,7 +261,7 @@ class UnifiedAgentServer:
         try:
             if method == 'initialize':
                 # Extract the protocol version from the request
-                client_protocol = request.get('params', {}).get('protocolVersion', '2025-06-18')
+                client_protocol = request.get('params', {}).get('protocolVersion', DEFAULT_PROTOCOL_VERSION)
                 return self._handle_initialize(request_id, client_protocol)
             elif method == 'tools/list':
                 return self._handle_list_tools(request_id)
@@ -226,7 +279,12 @@ class UnifiedAgentServer:
             return self._error_response(request_id, str(e), -32603)
     
     def _handle_initialize(self, request_id: Any, client_protocol: str) -> Dict[str, Any]:
-        """Handle initialization request"""
+        """Handle initialization request with protocol version validation"""
+        # Validate protocol version format
+        if not self._validate_protocol_version(client_protocol):
+            logger.warning(f"Invalid protocol version format: {client_protocol}, using default")
+            client_protocol = DEFAULT_PROTOCOL_VERSION
+        
         return {
             'jsonrpc': '2.0',
             'id': request_id,
@@ -242,6 +300,12 @@ class UnifiedAgentServer:
                 }
             }
         }
+    
+    def _validate_protocol_version(self, version: str) -> bool:
+        """Validate protocol version format (YYYY-MM-DD)"""
+        if not isinstance(version, str):
+            return False
+        return bool(PROTOCOL_VERSION_PATTERN.match(version))
     
     def _handle_list_tools(self, request_id: Any) -> Dict[str, Any]:
         """List all available tools"""
@@ -515,6 +579,50 @@ class UnifiedAgentServer:
         
         tools.extend(workflow_tools)
         
+        # Add deployment tools if available
+        if self.deployment_mgr:
+            deployment_tools = [
+                {
+                    'name': 'ua_self_deploy',
+                    'description': 'Deploy changes from development to production with automatic backup',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                            'dry_run': {
+                                'type': 'boolean',
+                                'description': 'Preview changes without deploying',
+                                'default': False
+                            }
+                        },
+                        'required': []
+                    }
+                },
+                {
+                    'name': 'ua_self_status',
+                    'description': 'Check deployment status and pending changes',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {},
+                        'required': []
+                    }
+                },
+                {
+                    'name': 'ua_self_rollback',
+                    'description': 'Rollback to a previous deployment',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                            'version': {
+                                'type': 'string',
+                                'description': 'Specific version to rollback to (optional, defaults to last)'
+                            }
+                        },
+                        'required': []
+                    }
+                }
+            ]
+            tools.extend(deployment_tools)
+        
         # Add agent-specific tools
         for agent_id, agent in self.agents.items():
             for tool in agent.get('tools', []):
@@ -580,6 +688,8 @@ class UnifiedAgentServer:
                 result = self._handle_backend_tool(tool_name, arguments)
             elif tool_name.startswith('ua_architect_'):
                 result = self._handle_architect_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_self_'):
+                result = self._handle_deployment_tool(tool_name, arguments)
             else:
                 return self._error_response(request_id, f"Unknown tool: {tool_name}", -32601)
         except ValueError as e:
@@ -1397,6 +1507,138 @@ Based on the description, this appears to be related to:
         except Exception as e:
             raise ValueError(f"Workflow error: {str(e)}")
     
+    def _handle_deployment_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle deployment tools"""
+        if not self.deployment_mgr:
+            raise ValueError("Deployment manager not available")
+        
+        try:
+            if tool_name == 'ua_self_deploy':
+                # Deploy changes
+                dry_run = args.get('dry_run', False)
+                result = self.deployment_mgr.deploy(dry_run=dry_run)
+                
+                if result['success']:
+                    if result.get('message'):
+                        response_text = result['message']
+                    elif dry_run:
+                        response_text = f"# Deployment Preview (Dry Run)\n\n"
+                        response_text += f"**Files to update:** {len(result['files_updated'])}\n\n"
+                        for file in result['files_updated']:
+                            response_text += f"- {file}\n"
+                    else:
+                        response_text = f"# Deployment Successful! 🚀\n\n"
+                        response_text += f"**Version:** {result['version']}\n"
+                        response_text += f"**Files updated:** {len(result['files_updated'])}\n\n"
+                        for file in result['files_updated']:
+                            response_text += f"- ✓ {file}\n"
+                else:
+                    response_text = f"# Deployment Failed ❌\n\n"
+                    response_text += f"**Error:** {result.get('error', 'Unknown error')}\n"
+                    if result.get('rollback_performed'):
+                        response_text += "\n⚠️ Automatic rollback was performed."
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            elif tool_name == 'ua_self_status':
+                # Get deployment status
+                status = self.deployment_mgr.get_status()
+                
+                response_text = f"# Deployment Status\n\n"
+                response_text += f"**Current version:** {status['current_version']}\n"
+                
+                if status['last_deployment']:
+                    last = status['last_deployment']
+                    response_text += f"**Last deployment:** {last['deployed']} (v{last['version']})\n"
+                    response_text += f"**Deployed from:** {last['deployed_from']}\n"
+                    if last.get('git_commit'):
+                        response_text += f"**Git commit:** {last['git_commit']}\n"
+                
+                if status['pending_changes']:
+                    response_text += f"\n## Pending Changes ({len(status['pending_changes'])} files)\n\n"
+                    for change in status['pending_changes']:
+                        response_text += f"- {change['file']} ({change['action']})\n"
+                else:
+                    response_text += "\n✅ No pending changes - production is up to date!"
+                
+                if status['is_locked']:
+                    lock_info = status['lock_info']
+                    response_text += f"\n⚠️ **Deployment locked by:** {lock_info['user']}@{lock_info['hostname']}\n"
+                    response_text += f"**Since:** {lock_info['locked_at']}\n"
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            elif tool_name == 'ua_self_rollback':
+                # Rollback deployment
+                version = args.get('version')
+                
+                # Get available backups
+                from pathlib import Path
+                backup_dir = Path(self.deployment_mgr.backup_dir)
+                backups = sorted(backup_dir.glob("v*_*"), reverse=True)
+                
+                if not backups:
+                    return {
+                        'content': [{
+                            'type': 'text',
+                            'text': "❌ No backups available for rollback"
+                        }]
+                    }
+                
+                if version:
+                    # Find specific version
+                    backup_path = None
+                    for backup in backups:
+                        if backup.name.startswith(f"v{version}_"):
+                            backup_path = backup
+                            break
+                    if not backup_path:
+                        return {
+                            'content': [{
+                                'type': 'text',
+                                'text': f"❌ No backup found for version {version}"
+                            }]
+                        }
+                else:
+                    # Use most recent backup
+                    backup_path = backups[0]
+                    version = backup_path.name.split('_')[0][1:]  # Extract version
+                
+                # Perform rollback
+                self.deployment_mgr.rollback(backup_path)
+                
+                response_text = f"# Rollback Successful! ⏪\n\n"
+                response_text += f"**Restored to version:** {version}\n"
+                response_text += f"**From backup:** {backup_path.name}\n"
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            else:
+                raise ValueError(f"Unknown deployment tool: {tool_name}")
+                
+        except Exception as e:
+            return {
+                'content': [{
+                    'type': 'text',
+                    'text': f"❌ Deployment operation failed: {str(e)}"
+                }]
+            }
+    
     def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
         """Generate error response with proper JSON-RPC error codes
         
@@ -1420,35 +1662,35 @@ Based on the description, this appears to be related to:
         """Run the MCP server using stdio transport"""
         logger.info("Starting Unified Agents MCP Server...")
         
-        with open(debug_log_path, 'a') as f:
-            f.write("Server entering main loop, waiting for stdin...\n")
+        with debug_log("Server entering main loop, waiting for stdin..."):
+            pass
         
         # Process requests from stdin
         try:
             for line in sys.stdin:
                 try:
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Received line: {line[:100]}...\n")
+                    with debug_log(f"Received line: {line[:100]}..."):
+                        pass
                     
                     # Parse JSON-RPC request
                     request = json.loads(line.strip())
                     logger.debug(f"Received request: {request}")
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Parsed request: {request.get('method')} (id: {request.get('id')})\n")
+                    with debug_log(f"Parsed request: {request.get('method')} (id: {request.get('id')})"):
+                        pass
                     
                     # Handle the request
                     response = self.handle_request(request)
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"Response ready: {json.dumps(response)[:100]}...\n")
+                    with debug_log(f"Response ready: {json.dumps(response)[:100]}..."):
+                        pass
                     
                     # Send response to stdout
                     print(json.dumps(response))
                     sys.stdout.flush()
                     
-                    with open(debug_log_path, 'a') as f:
-                        f.write("Response sent successfully\n")
+                    with debug_log("Response sent successfully"):
+                        pass
                     
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON: {e}")
@@ -1457,48 +1699,47 @@ Based on the description, this appears to be related to:
                     sys.stdout.flush()
                 except Exception as e:
                     logger.error(f"Unexpected error: {e}")
-                    with open(debug_log_path, 'a') as f:
-                        f.write(f"❌ Error processing request: {e}\n")
-                        f.write(traceback.format_exc())
+                    with debug_log(f"❌ Error processing request: {e}\n{traceback.format_exc()}"):
+                        pass
                     error_response = self._error_response(None, "Internal error")
                     print(json.dumps(error_response))
                     sys.stdout.flush()
         
         except (EOFError, KeyboardInterrupt):
-            with open(debug_log_path, 'a') as f:
-                f.write("Server shutting down (stdin closed or interrupted)\n")
+            with debug_log("Server shutting down (stdin closed or interrupted)"):
+                pass
         except Exception as e:
-            with open(debug_log_path, 'a') as f:
-                f.write(f"❌ Server crashed: {e}\n")
-                f.write(traceback.format_exc())
+            with debug_log(f"❌ Server crashed: {e}\n{traceback.format_exc()}"):
+                pass
             raise
 
 
 if __name__ == "__main__":
     try:
-        with open(debug_log_path, 'a') as f:
-            f.write("Starting server initialization...\n")
+        with debug_log("Starting server initialization..."):
+            pass
         server = UnifiedAgentServer()
-        with open(debug_log_path, 'a') as f:
-            f.write("✅ Server initialized successfully\n")
-            f.write("Starting server.run()...\n")
+        with debug_log("✅ Server initialized successfully"):
+            pass
+        with debug_log("Starting server.run()..."):
+            pass
         
         # Heartbeat disabled after successful debugging
-        # Uncomment below to re-enable heartbeat logging
-        # import threading
-        # def heartbeat():
-        #     while True:
-        #         with open(debug_log_path, 'a') as f:
-        #             f.write(f"💓 Heartbeat: Server alive at {__import__('datetime').datetime.now()}\n")
-        #         threading.Event().wait(10)  # Wait 10 seconds
-        # 
-        # heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
-        # heartbeat_thread.start()
+        # To enable heartbeat logging, set MCP_HEARTBEAT=true
+        if os.environ.get('MCP_HEARTBEAT', '').lower() in ('true', '1', 'yes'):
+            import threading
+            def heartbeat():
+                while True:
+                    with debug_log(f"💓 Heartbeat: Server alive at {datetime.now()}"):
+                        pass
+                    threading.Event().wait(10)  # Wait 10 seconds
+            
+            heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+            heartbeat_thread.start()
         
         server.run()
     except Exception as e:
-        with open(debug_log_path, 'a') as f:
-            f.write(f"❌ Server startup failed: {e}\n")
-            f.write(traceback.format_exc())
+        with debug_log(f"❌ Server startup failed: {e}\n{traceback.format_exc()}"):
+            pass
         # Re-raise to ensure proper exit code
         raise
