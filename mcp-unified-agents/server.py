@@ -67,6 +67,19 @@ except Exception as e:
             pass
     raise
 
+try:
+    # Import deployment components
+    from deployment import DeploymentManager
+    if DEBUG_MODE:
+        with debug_log("✅ Deployment imports successful"):
+            pass
+except Exception as e:
+    if DEBUG_MODE:
+        with debug_log(f"❌ Deployment import failed: {e}\n{traceback.format_exc()}"):
+            pass
+    # Deployment is optional, don't raise
+    pass
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -196,6 +209,16 @@ class UnifiedAgentServer:
             agent_registry=self.agents,
             context_manager=self.context_manager
         )
+        
+        # Initialize deployment manager if available
+        try:
+            import os
+            dev_path = os.environ.get('MCP_DEV_PATH', str(Path(__file__).parent.parent))
+            prod_path = os.environ.get('MCP_PROD_PATH', os.path.expanduser("~/mcp-config/servers/mcp-unified-agents"))
+            self.deployment_mgr = DeploymentManager(dev_path, prod_path)
+        except Exception as e:
+            logger.warning(f"Deployment manager not available: {e}")
+            self.deployment_mgr = None
         
     def _load_agents(self) -> Dict[str, Any]:
         """Load agent manifest from JSON"""
@@ -556,6 +579,50 @@ class UnifiedAgentServer:
         
         tools.extend(workflow_tools)
         
+        # Add deployment tools if available
+        if self.deployment_mgr:
+            deployment_tools = [
+                {
+                    'name': 'ua_self_deploy',
+                    'description': 'Deploy changes from development to production with automatic backup',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                            'dry_run': {
+                                'type': 'boolean',
+                                'description': 'Preview changes without deploying',
+                                'default': False
+                            }
+                        },
+                        'required': []
+                    }
+                },
+                {
+                    'name': 'ua_self_status',
+                    'description': 'Check deployment status and pending changes',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {},
+                        'required': []
+                    }
+                },
+                {
+                    'name': 'ua_self_rollback',
+                    'description': 'Rollback to a previous deployment',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                            'version': {
+                                'type': 'string',
+                                'description': 'Specific version to rollback to (optional, defaults to last)'
+                            }
+                        },
+                        'required': []
+                    }
+                }
+            ]
+            tools.extend(deployment_tools)
+        
         # Add agent-specific tools
         for agent_id, agent in self.agents.items():
             for tool in agent.get('tools', []):
@@ -621,6 +688,8 @@ class UnifiedAgentServer:
                 result = self._handle_backend_tool(tool_name, arguments)
             elif tool_name.startswith('ua_architect_'):
                 result = self._handle_architect_tool(tool_name, arguments)
+            elif tool_name.startswith('ua_self_'):
+                result = self._handle_deployment_tool(tool_name, arguments)
             else:
                 return self._error_response(request_id, f"Unknown tool: {tool_name}", -32601)
         except ValueError as e:
@@ -1437,6 +1506,138 @@ Based on the description, this appears to be related to:
             raise ValueError(f"Missing required parameter: {e}")
         except Exception as e:
             raise ValueError(f"Workflow error: {str(e)}")
+    
+    def _handle_deployment_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle deployment tools"""
+        if not self.deployment_mgr:
+            raise ValueError("Deployment manager not available")
+        
+        try:
+            if tool_name == 'ua_self_deploy':
+                # Deploy changes
+                dry_run = args.get('dry_run', False)
+                result = self.deployment_mgr.deploy(dry_run=dry_run)
+                
+                if result['success']:
+                    if result.get('message'):
+                        response_text = result['message']
+                    elif dry_run:
+                        response_text = f"# Deployment Preview (Dry Run)\n\n"
+                        response_text += f"**Files to update:** {len(result['files_updated'])}\n\n"
+                        for file in result['files_updated']:
+                            response_text += f"- {file}\n"
+                    else:
+                        response_text = f"# Deployment Successful! 🚀\n\n"
+                        response_text += f"**Version:** {result['version']}\n"
+                        response_text += f"**Files updated:** {len(result['files_updated'])}\n\n"
+                        for file in result['files_updated']:
+                            response_text += f"- ✓ {file}\n"
+                else:
+                    response_text = f"# Deployment Failed ❌\n\n"
+                    response_text += f"**Error:** {result.get('error', 'Unknown error')}\n"
+                    if result.get('rollback_performed'):
+                        response_text += "\n⚠️ Automatic rollback was performed."
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            elif tool_name == 'ua_self_status':
+                # Get deployment status
+                status = self.deployment_mgr.get_status()
+                
+                response_text = f"# Deployment Status\n\n"
+                response_text += f"**Current version:** {status['current_version']}\n"
+                
+                if status['last_deployment']:
+                    last = status['last_deployment']
+                    response_text += f"**Last deployment:** {last['deployed']} (v{last['version']})\n"
+                    response_text += f"**Deployed from:** {last['deployed_from']}\n"
+                    if last.get('git_commit'):
+                        response_text += f"**Git commit:** {last['git_commit']}\n"
+                
+                if status['pending_changes']:
+                    response_text += f"\n## Pending Changes ({len(status['pending_changes'])} files)\n\n"
+                    for change in status['pending_changes']:
+                        response_text += f"- {change['file']} ({change['action']})\n"
+                else:
+                    response_text += "\n✅ No pending changes - production is up to date!"
+                
+                if status['is_locked']:
+                    lock_info = status['lock_info']
+                    response_text += f"\n⚠️ **Deployment locked by:** {lock_info['user']}@{lock_info['hostname']}\n"
+                    response_text += f"**Since:** {lock_info['locked_at']}\n"
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            elif tool_name == 'ua_self_rollback':
+                # Rollback deployment
+                version = args.get('version')
+                
+                # Get available backups
+                from pathlib import Path
+                backup_dir = Path(self.deployment_mgr.backup_dir)
+                backups = sorted(backup_dir.glob("v*_*"), reverse=True)
+                
+                if not backups:
+                    return {
+                        'content': [{
+                            'type': 'text',
+                            'text': "❌ No backups available for rollback"
+                        }]
+                    }
+                
+                if version:
+                    # Find specific version
+                    backup_path = None
+                    for backup in backups:
+                        if backup.name.startswith(f"v{version}_"):
+                            backup_path = backup
+                            break
+                    if not backup_path:
+                        return {
+                            'content': [{
+                                'type': 'text',
+                                'text': f"❌ No backup found for version {version}"
+                            }]
+                        }
+                else:
+                    # Use most recent backup
+                    backup_path = backups[0]
+                    version = backup_path.name.split('_')[0][1:]  # Extract version
+                
+                # Perform rollback
+                self.deployment_mgr.rollback(backup_path)
+                
+                response_text = f"# Rollback Successful! ⏪\n\n"
+                response_text += f"**Restored to version:** {version}\n"
+                response_text += f"**From backup:** {backup_path.name}\n"
+                
+                return {
+                    'content': [{
+                        'type': 'text',
+                        'text': response_text
+                    }]
+                }
+            
+            else:
+                raise ValueError(f"Unknown deployment tool: {tool_name}")
+                
+        except Exception as e:
+            return {
+                'content': [{
+                    'type': 'text',
+                    'text': f"❌ Deployment operation failed: {str(e)}"
+                }]
+            }
     
     def _error_response(self, request_id: Any, message: str, code: int = -32603) -> Dict[str, Any]:
         """Generate error response with proper JSON-RPC error codes
