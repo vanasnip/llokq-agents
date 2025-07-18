@@ -6,6 +6,11 @@
       "description": "Quality assurance and testing specialist",
       "personality": "Meticulous, thorough, skeptical",
       "capabilities": ["test_generation", "bug_analysis", "coverage_analysis"],
+      "scope": {
+        "owns": ["test_suites", "test_coverage", "bug_tracking"],
+        "collaborates_on": ["api_validation", "performance_testing"],
+        "delegates": ["implementation_fixes", "architecture_changes"]
+      },
       "tools": [
         {
           "name": "ua_qa_test_generate",
@@ -43,6 +48,11 @@
       "description": "Backend development and API specialist",
       "personality": "Pragmatic, performance-focused, efficient",
       "capabilities": ["api_design", "database_design", "performance_optimization"],
+      "scope": {
+        "owns": ["api_endpoints", "database_schema", "backend_logic"],
+        "collaborates_on": ["api_contracts", "data_models", "performance_testing"],
+        "delegates": ["ui_components", "deployment_config", "security_audits"]
+      },
       "tools": [
         {
           "name": "ua_backend_api_design",
@@ -83,6 +93,11 @@
       "description": "System design and architecture expert",
       "personality": "Strategic, holistic, pattern-oriented",
       "capabilities": ["system_design", "pattern_selection", "dependency_analysis"],
+      "scope": {
+        "owns": ["system_architecture", "design_patterns", "technology_stack"],
+        "collaborates_on": ["api_contracts", "data_models", "deployment_architecture"],
+        "delegates": ["implementation_details", "test_specifics", "ui_design"]
+      },
       "tools": [
         {
           "name": "ua_architect_design",
@@ -98,6 +113,99 @@
                 "type": "string"
               },
               "description": "Technical or business constraints"
+            }
+          }
+        }
+      ]
+    },
+    "discourse": {
+      "name": "Discourse Agent",
+      "description": "Conversational Facilitator & Knowledge Architect - facilitates structured dialogue and preserves insights",
+      "personality": "Socratic, reflective, structured",
+      "capabilities": ["conversation_facilitation", "knowledge_extraction", "decision_documentation"],
+      "scope": {
+        "owns": ["conversation_flow", "knowledge_capture", "decision_records"],
+        "collaborates_on": ["requirements_discovery", "design_discussions", "retrospectives"],
+        "delegates": ["implementation", "testing", "deployment"]
+      },
+      "tools": [
+        {
+          "name": "ua_discourse_discuss",
+          "description": "Facilitate a discussion on a topic",
+          "parameters": {
+            "topic": {
+              "type": "string",
+              "description": "Topic to discuss"
+            },
+            "context?": {
+              "type": "object",
+              "description": "Additional context"
+            }
+          }
+        },
+        {
+          "name": "ua_discourse_question",
+          "description": "Add a question to explore",
+          "parameters": {
+            "question": {
+              "type": "string",
+              "description": "Question to explore"
+            },
+            "category?": {
+              "type": "string",
+              "description": "Question category"
+            }
+          }
+        },
+        {
+          "name": "ua_discourse_insight",
+          "description": "Record an insight or observation",
+          "parameters": {
+            "insight": {
+              "type": "string",
+              "description": "Insight to record"
+            },
+            "references?": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Related references"
+            }
+          }
+        },
+        {
+          "name": "ua_discourse_decide",
+          "description": "Make and record a decision",
+          "parameters": {
+            "decision": {
+              "type": "string",
+              "description": "Decision made"
+            },
+            "context?": {
+              "type": "object",
+              "description": "Decision context"
+            }
+          }
+        },
+        {
+          "name": "ua_discourse_summarize",
+          "description": "Generate conversation summary",
+          "parameters": {
+            "depth?": {
+              "type": "string",
+              "enum": ["brief", "detailed"],
+              "description": "Summary depth"
+            }
+          }
+        },
+        {
+          "name": "ua_discourse_archive",
+          "description": "Archive the current conversation",
+          "parameters": {
+            "title?": {
+              "type": "string",
+              "description": "Archive title"
             }
           }
         }
@@ -138,6 +246,20 @@
       "requires": ["system_design", "problem_analysis"],
       "provides": ["design_patterns", "best_practices"],
       "complements": ["api_design", "code_quality"]
+    },
+    "conversation_facilitation": {
+      "provides": ["structured_dialogue", "knowledge_capture"],
+      "complements": ["test_generation", "system_design", "api_design"]
+    },
+    "knowledge_extraction": {
+      "requires": ["conversation_facilitation"],
+      "provides": ["documentation", "decision_records"],
+      "complements": ["api_documentation", "pattern_selection"]
+    },
+    "decision_documentation": {
+      "requires": ["conversation_facilitation", "knowledge_extraction"],
+      "provides": ["decision_history", "rationale_capture"],
+      "complements": ["system_design", "pattern_selection"]
     }
   }
 }
