@@ -165,7 +165,10 @@ def handle_discourse_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any
 
 
 def _discourse_discuss(topic: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    """Start or continue a discussion on a topic"""
+    """Start or continue a discussion on a topic
+    
+    Phase: Exploration - Sets the topic and context for structured dialogue
+    """
     session = get_session()
     session.topic = topic
     
@@ -191,7 +194,10 @@ def _discourse_discuss(topic: str, context: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _discourse_question(question: str, category: Optional[str]) -> Dict[str, Any]:
-    """Add a question to explore"""
+    """Add a question to explore
+    
+    Phase: Exploration → Analysis - Captures questions that drive investigation
+    """
     session = get_session()
     
     entry = session.add_entry(
@@ -219,7 +225,10 @@ def _discourse_question(question: str, category: Optional[str]) -> Dict[str, Any
 
 
 def _discourse_insight(insight: str, references: List[str]) -> Dict[str, Any]:
-    """Record an insight or observation"""
+    """Record an insight or observation
+    
+    Phase: Analysis → Synthesis - Captures insights that emerge from exploration
+    """
     session = get_session()
     
     # Transition to analysis phase if still exploring
@@ -253,7 +262,10 @@ def _discourse_insight(insight: str, references: List[str]) -> Dict[str, Any]:
 
 
 def _discourse_decide(decision: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    """Make and record a decision"""
+    """Make and record a decision
+    
+    Phase: Synthesis → Decision - Records decisions based on insights gathered
+    """
     session = get_session()
     
     entry = session.add_entry(
@@ -285,7 +297,10 @@ def _discourse_decide(decision: str, context: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _discourse_summarize(depth: str) -> Dict[str, Any]:
-    """Generate conversation summary"""
+    """Generate conversation summary
+    
+    Phase: Any - Can be used at any phase to review progress
+    """
     session = get_session()
     
     summary = session.get_summary(depth)
@@ -306,7 +321,10 @@ def _discourse_summarize(depth: str) -> Dict[str, Any]:
 
 
 def _discourse_archive(title: Optional[str]) -> Dict[str, Any]:
-    """Archive the current conversation"""
+    """Archive the current conversation
+    
+    Phase: Archive - Preserves the conversation for future reference
+    """
     session = get_session()
     
     if len(session.entries) == 0:
