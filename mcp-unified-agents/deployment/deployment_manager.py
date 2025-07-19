@@ -78,9 +78,16 @@ class DeploymentManager:
     
     def _should_exclude(self, file_path: str) -> bool:
         """Check if file should be excluded from sync"""
+        path = Path(file_path)
+        # Check simple pattern matches
         for pattern in self.EXCLUDE_PATTERNS:
-            if Path(file_path).match(pattern):
+            if path.match(pattern) or path.match(f"**/{pattern}"):
                 return True
+
+        # Explicitly exclude anything under a .git directory
+        if '.git' in path.parts:
+            return True
+
         return False
     
     def _get_files_to_sync(self) -> List[Tuple[Path, Path]]:
