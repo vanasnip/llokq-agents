@@ -80,6 +80,18 @@ except Exception as e:
     # Deployment is optional, don't raise
     pass
 
+try:
+    # Import tool registry
+    from tools import registry, register_all_handlers
+    if DEBUG_MODE:
+        with debug_log("✅ Tool registry imports successful"):
+            pass
+except Exception as e:
+    if DEBUG_MODE:
+        with debug_log(f"❌ Tool registry import failed: {e}\n{traceback.format_exc()}"):
+            pass
+    raise
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -219,6 +231,10 @@ class UnifiedAgentServer:
         except Exception as e:
             logger.warning(f"Deployment manager not available: {e}")
             self.deployment_mgr = None
+        
+        # Initialize tool handlers
+        register_all_handlers()
+        logger.info("Tool handlers registered")
         
     def _load_agents(self) -> Dict[str, Any]:
         """Load agent manifest from JSON"""
@@ -672,26 +688,19 @@ class UnifiedAgentServer:
         tool_name = params.get('name')
         arguments = params.get('arguments', {})
         
-        # Route to appropriate handler
+        # Use the registry to route to appropriate handler
         try:
-            if tool_name.startswith('ua_agents_') or tool_name.startswith('ua_agent_'):
-                result = self._handle_discovery_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_capability_'):
-                result = self._handle_discovery_tool(tool_name, arguments)
-            elif tool_name in ['ua_suggest_agents', 'ua_approve_agents', 'ua_set_preferences']:
-                result = self._handle_control_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_workflow_'):
-                result = self._handle_workflow_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_qa_'):
-                result = self._handle_qa_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_backend_'):
-                result = self._handle_backend_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_architect_'):
-                result = self._handle_architect_tool(tool_name, arguments)
-            elif tool_name.startswith('ua_self_'):
-                result = self._handle_deployment_tool(tool_name, arguments)
+            handler = registry.get_handler(tool_name)
+            if not handler:
+                # Special handling for deployment tools if manager is available
+                if tool_name.startswith('ua_self_') and self.deployment_mgr:
+                    result = self._handle_deployment_tool(tool_name, arguments)
+                else:
+                    return self._error_response(request_id, f"Unknown tool: {tool_name}", -32601)
             else:
-                return self._error_response(request_id, f"Unknown tool: {tool_name}", -32601)
+                # Pass server instance to handlers that need it
+                # This is a temporary solution - handlers currently create their own instances
+                result = handler(tool_name, arguments)
         except ValueError as e:
             # Tool-specific errors (unknown tool, missing params)
             return self._error_response(request_id, str(e), -32602)
